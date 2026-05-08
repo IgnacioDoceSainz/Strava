@@ -322,9 +322,7 @@ let filterType = 'all';
 // ── INIT ──────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   // Mostrar aviso si el Client ID no fue configurado
-  if (STRAVA_CLIENT_ID === '237317') {
-    document.getElementById('config-notice').style.display = 'block';
-  }
+  // Client ID configured - no notice needed
  
   // Strava devuelve el token en el hash: #access_token=xxx&athlete_id=yyy...
   const hash = Object.fromEntries(
@@ -351,10 +349,7 @@ window.addEventListener('DOMContentLoaded', () => {
  
 // ── OAUTH (flujo implícito / token en hash) ────────
 function startOAuth() {
-  if (STRAVA_CLIENT_ID === '237317') {
-    alert('⚠️ Primero edita el archivo index.html y pon tu Client ID de Strava.\n\nBusca la línea marcada con "← CAMBIA ESTO".');
-    return;
-  }
+  // Client ID is set, proceed with OAuth
   const authUrl = 'https://www.strava.com/oauth/authorize'
     + '?client_id='      + STRAVA_CLIENT_ID
     + '&response_type=token'          // flujo implícito → token en el hash

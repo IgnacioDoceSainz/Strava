@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Strava Dashboard</title>
-
+ 
 <!-- Leaflet maps -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
+ 
 <style>
 /* ── RESET & VARS ───────────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -23,7 +23,7 @@
   --rad:12px; --rad2:8px;
 }
 body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
-
+ 
 /* ── CONFIG NOTICE ──────────────────────────────────────────────────── */
 #config-notice{
   background:#7c2d00;border:1px solid var(--or);border-radius:var(--rad);
@@ -32,7 +32,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
 }
 #config-notice strong{color:var(--or)}
 #config-notice code{background:#000;padding:1px 5px;border-radius:4px;font-size:12px}
-
+ 
 /* ── SCREEN: CONFIG ─────────────────────────────────────────────────── */
 #screen-config{
   min-height:100vh;display:flex;flex-direction:column;
@@ -59,10 +59,10 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
 .btn-ghost{width:100%;background:transparent;border:1px solid var(--bd);border-radius:var(--rad2);padding:10px;font-size:13px;color:var(--mu);cursor:pointer;margin-top:.6rem;transition:border-color .2s,color .2s}
 .btn-ghost:hover{border-color:var(--or);color:var(--or)}
 .cfg-hint{margin-top:1.2rem;font-size:11px;color:var(--fa);line-height:1.65;text-align:center}
-
+ 
 /* ── SCREEN: APP ────────────────────────────────────────────────────── */
 #screen-app{display:none}
-
+ 
 /* header */
 .hdr{background:var(--s1);border-bottom:1px solid var(--bd);height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 1.5rem;position:sticky;top:0;z-index:200}
 .hdr-brand{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600}
@@ -73,17 +73,17 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
 .hdr-name{font-size:13px;color:var(--mu)}
 .btn-sm{background:transparent;border:1px solid var(--bd);border-radius:6px;padding:4px 11px;font-size:12px;color:var(--mu);cursor:pointer;transition:color .2s,border-color .2s}
 .btn-sm:hover{color:var(--or);border-color:var(--or)}
-
+ 
 /* nav */
 .nav{background:var(--s1);border-bottom:1px solid var(--bd);display:flex;padding:0 1rem;overflow-x:auto;scrollbar-width:none}
 .nav::-webkit-scrollbar{display:none}
 .nav-tab{padding:10px 16px;font-size:13px;color:var(--mu);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:color .2s}
 .nav-tab:hover{color:var(--tx)}
 .nav-tab.on{color:var(--or);border-bottom-color:var(--or)}
-
+ 
 /* content */
 .wrap{max-width:1080px;margin:0 auto;padding:1.5rem}
-
+ 
 /* stats */
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-bottom:1.25rem}
 .stat{background:var(--s1);border:1px solid var(--bd);border-radius:var(--rad);padding:12px 14px}
@@ -92,18 +92,18 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
 .stat-val em{font-size:12px;font-weight:400;color:var(--mu);font-style:normal;margin-left:2px}
 .stat-note{font-size:11px;color:var(--fa);margin-top:4px}
 .stat-note.up{color:var(--green)}
-
+ 
 /* card */
 .card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--rad);padding:1.1rem 1.25rem;margin-bottom:1rem}
 .card-title{font-size:12px;color:var(--mu);margin-bottom:12px}
-
+ 
 /* map */
 .map-box{height:350px;border-radius:var(--rad);overflow:hidden;border:1px solid var(--bd)}
-
+ 
 /* chart */
 .chart-h200{position:relative;width:100%;height:200px}
 .chart-h220{position:relative;width:100%;height:220px}
-
+ 
 /* activity rows */
 .act-row{display:flex;align-items:center;justify-content:space-between;padding:10px 6px;border-bottom:1px solid var(--bd);cursor:pointer;border-radius:var(--rad2);transition:background .15s}
 .act-row:last-child{border-bottom:none}
@@ -116,59 +116,59 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
 .act-r{text-align:right;flex-shrink:0}
 .act-km{font-size:15px;font-weight:700;color:var(--or)}
 .act-sb{font-size:11px;color:var(--mu);margin-top:2px}
-
+ 
 /* zones */
 .zone-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
 .zone-nm{width:72px;font-size:11px;font-weight:600}
 .zone-bg{flex:1;background:var(--s2);border-radius:4px;height:20px;overflow:hidden}
 .zone-fill{height:100%;border-radius:4px;display:flex;align-items:center;padding-left:8px;transition:width 1.2s cubic-bezier(.2,1,.2,1)}
 .zone-fill span{font-size:10px;font-weight:700;color:#fff}
-
+ 
 /* legend */
 .legend{display:flex;gap:14px;font-size:11px;color:var(--mu);margin-bottom:8px;flex-wrap:wrap}
 .leg{display:flex;align-items:center;gap:5px}
 .leg-sq{width:9px;height:9px;border-radius:2px;display:inline-block}
-
+ 
 /* filter pills */
 .pills{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
 .pill{font-size:12px;padding:4px 12px;border:1px solid var(--bd);border-radius:20px;cursor:pointer;color:var(--mu);background:transparent;transition:all .2s}
 .pill:hover,.pill.on{border-color:var(--or);color:var(--or);background:var(--or2)}
-
+ 
 /* loading */
 #loading{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem}
 .spinner{width:36px;height:36px;border:3px solid var(--bd);border-top-color:var(--or);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 #loading p{font-size:14px;color:var(--mu)}
-
+ 
 /* panel switch */
 .panel{display:none}
 .panel.on{display:block}
-
+ 
 /* responsive */
 @media(max-width:580px){.wrap{padding:1rem}.hdr{padding:0 1rem}.hdr-name{display:none}}
 </style>
 </head>
 <body>
-
+ 
 <!-- ══ CONFIG NOTICE ═══════════════════════════════════════════════════ -->
 <div id="config-notice">
   ⚠️ <strong>Antes de subir a GitHub Pages:</strong> edita este archivo y reemplaza
-  <code>TU_CLIENT_ID_AQUI</code> con tu Client ID de Strava (número) en la línea marcada
+  <code>237317</code> con tu Client ID de Strava (número) en la línea marcada
   con <code>// ← CAMBIA ESTO</code> al inicio del script.
 </div>
-
+ 
 <!-- ══ LOADING ══════════════════════════════════════════════════════════ -->
 <div id="loading" style="display:none">
   <div class="spinner"></div>
   <p id="loading-msg">Cargando actividades…</p>
 </div>
-
+ 
 <!-- ══ SCREEN: CONFIGURACIÓN INICIAL ═══════════════════════════════════ -->
 <div id="screen-config">
   <div class="cfg-logo">🏃</div>
   <h1 class="cfg-h1">Strava Dashboard</h1>
   <p class="cfg-sub">Configura tu app una vez y comparte el link con quien quieras</p>
-
+ 
   <div class="cfg-card">
     <div class="cfg-step">
       <div class="cfg-step-num">1</div>
@@ -184,7 +184,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
       <div class="cfg-step-body">
         <strong>Edita el archivo <code>index.html</code></strong>
         <p>Abre el archivo, busca la línea <code>// ← CAMBIA ESTO</code><br>
-        y reemplaza <code>TU_CLIENT_ID_AQUI</code> con tu número de Client ID.</p>
+        y reemplaza <code>237317</code> con tu número de Client ID.</p>
       </div>
     </div>
     <div class="cfg-step">
@@ -203,16 +203,16 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
         Funciona en cualquier ordenador, sin instalar nada.</p>
       </div>
     </div>
-
+ 
     <button class="btn-or" onclick="startOAuth()">Conectar con Strava →</button>
     <button class="btn-ghost" onclick="loadDemo()">▶ Ver demo con datos de ejemplo</button>
     <p class="cfg-hint">El token se guarda solo en tu navegador (localStorage).<br>Nadie más puede ver tus datos.</p>
   </div>
 </div>
-
+ 
 <!-- ══ SCREEN: APP ══════════════════════════════════════════════════════ -->
 <div id="screen-app">
-
+ 
   <header class="hdr">
     <div class="hdr-brand">
       <div class="hdr-dot">🏅</div>
@@ -224,16 +224,16 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
       <button class="btn-sm" onclick="logout()">Salir</button>
     </div>
   </header>
-
+ 
   <nav class="nav">
     <div class="nav-tab on"  data-p="overview">📊 Resumen</div>
     <div class="nav-tab"     data-p="activities">🗺 Actividades</div>
     <div class="nav-tab"     data-p="hr">❤️ Zonas FC</div>
     <div class="nav-tab"     data-p="trends">📈 Tendencias</div>
   </nav>
-
+ 
   <main class="wrap">
-
+ 
     <!-- OVERVIEW -->
     <div class="panel on" id="p-overview">
       <div class="stats" id="ov-stats"></div>
@@ -246,7 +246,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
         <div id="ov-list"></div>
       </div>
     </div>
-
+ 
     <!-- ACTIVITIES -->
     <div class="panel" id="p-activities">
       <div class="pills" id="pills">
@@ -263,7 +263,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
         <div id="det-stats" style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px"></div>
       </div>
     </div>
-
+ 
     <!-- HR ZONES -->
     <div class="panel" id="p-hr">
       <div class="stats" id="hr-stats"></div>
@@ -280,7 +280,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
         <div class="chart-h220"><canvas id="hr-chart"></canvas></div>
       </div>
     </div>
-
+ 
     <!-- TRENDS -->
     <div class="panel" id="p-trends">
       <div class="card">
@@ -296,43 +296,43 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
         <div class="chart-h200"><canvas id="elev-chart"></canvas></div>
       </div>
     </div>
-
+ 
   </main>
 </div>
-
+ 
 <script>
 // ════════════════════════════════════════════════════
 //  ← CAMBIA ESTO: pon tu Client ID de Strava
 const STRAVA_CLIENT_ID = '237317';
 // ════════════════════════════════════════════════════
-
+ 
 // Strava no permite intercambiar el code→token desde el navegador (CORS en /oauth/token)
 // Por eso usamos el flujo de Token Implícito: Strava devuelve el access_token
 // directamente en el hash de la URL (#access_token=xxx)
 // Este flujo solo requiere el CLIENT_ID, nunca el CLIENT_SECRET en el frontend.
-
+ 
 const REDIRECT = window.location.origin + window.location.pathname;
 const SCOPES   = 'activity:read_all';
-
+ 
 let activities = [];
 let athlete    = {};
 let mapOv = null, mapDet = null;
 let filterType = 'all';
-
+ 
 // ── INIT ──────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   // Mostrar aviso si el Client ID no fue configurado
   if (STRAVA_CLIENT_ID === '237317') {
     document.getElementById('config-notice').style.display = 'block';
   }
-
+ 
   // Strava devuelve el token en el hash: #access_token=xxx&athlete_id=yyy...
   const hash = Object.fromEntries(
     window.location.hash.replace('#','').split('&')
       .filter(Boolean)
       .map(p => p.split('='))
   );
-
+ 
   if (hash.access_token) {
     // Limpiar URL
     history.replaceState(null, '', window.location.pathname);
@@ -340,15 +340,15 @@ window.addEventListener('DOMContentLoaded', () => {
     loadApp(hash.access_token);
     return;
   }
-
+ 
   // Token guardado de sesión anterior
   const saved = localStorage.getItem('strava_token');
   if (saved) { loadApp(saved); return; }
-
+ 
   // Mostrar pantalla de configuración
   document.getElementById('screen-config').style.display = 'flex';
 });
-
+ 
 // ── OAUTH (flujo implícito / token en hash) ────────
 function startOAuth() {
   if (STRAVA_CLIENT_ID === '237317') {
@@ -363,7 +363,7 @@ function startOAuth() {
     + '&scope='          + SCOPES;
   window.location.href = authUrl;
 }
-
+ 
 // ── LOAD APP ───────────────────────────────────────
 async function loadApp(token) {
   showLoading('Conectando con Strava…');
@@ -384,7 +384,7 @@ async function loadApp(token) {
     alert('Error al conectar: ' + e.message + '\n\nEl token puede haber expirado. Vuelve a conectar.');
   }
 }
-
+ 
 async function stravaFetch(path, token) {
   const r = await fetch('https://www.strava.com/api/v3/' + path, {
     headers: { 'Authorization': 'Bearer ' + token }
@@ -395,12 +395,12 @@ async function stravaFetch(path, token) {
   }
   return r.json();
 }
-
+ 
 // ── SHOW APP ───────────────────────────────────────
 function showApp() {
   document.getElementById('screen-config').style.display = 'none';
   document.getElementById('screen-app').style.display    = 'block';
-
+ 
   // Avatar / nombre
   const name = (athlete.firstname||'') + ' ' + (athlete.lastname||'');
   document.getElementById('usr-nm').textContent = name.trim();
@@ -410,14 +410,14 @@ function showApp() {
   } else {
     av.textContent = ((athlete.firstname||'?')[0] + (athlete.lastname||'?')[0]).toUpperCase();
   }
-
+ 
   renderOverview();
   renderActivities();
   renderHR();
   renderTrends();
   setupNav();
 }
-
+ 
 // ── NAV ────────────────────────────────────────────
 function setupNav() {
   document.querySelectorAll('.nav-tab').forEach(t => {
@@ -431,7 +431,7 @@ function setupNav() {
     });
   });
 }
-
+ 
 // ── OVERVIEW ───────────────────────────────────────
 function renderOverview() {
   const acts = activities;
@@ -442,7 +442,7 @@ function renderOverview() {
   const pace = runs.length ? runs.reduce((s,a) => s + 1000/a.average_speed, 0)/runs.length : 0;
   const hrA  = acts.filter(a => a.average_heartrate);
   const avgHR= hrA.length ? hrA.reduce((s,a) => s+a.average_heartrate,0)/hrA.length : 0;
-
+ 
   document.getElementById('ov-stats').innerHTML = [
     {l:'Kilómetros totales', v:km.toFixed(1),          u:'km',      n:'últimos 60 días', c:''},
     {l:'Tiempo activo',      v:fmtTime(secs),           u:'',        n:acts.length+' actividades', c:''},
@@ -455,7 +455,7 @@ function renderOverview() {
     <div class="stat-val">${s.v}<em>${s.u}</em></div>
     <div class="stat-note ${s.c}">${s.n}</div>
   </div>`).join('');
-
+ 
   setTimeout(() => {
     if (!mapOv) {
       mapOv = L.map('map-ov');
@@ -464,23 +464,23 @@ function renderOverview() {
     }
     drawRoute(acts[0], mapOv);
   }, 120);
-
+ 
   document.getElementById('ov-list').innerHTML =
     acts.slice(0,6).map((a,i) => rowHtml(a,i)).join('');
 }
-
+ 
 // ── ACTIVITIES ─────────────────────────────────────
 function renderActivities() {
   redrawList();
 }
-
+ 
 function filterActs(type, el) {
   filterType = type;
   document.querySelectorAll('.pill').forEach(p => p.classList.remove('on'));
   el.classList.add('on');
   redrawList();
 }
-
+ 
 function redrawList() {
   const list = filterType === 'all' ? activities
     : activities.filter(a => a.type === filterType);
@@ -488,17 +488,17 @@ function redrawList() {
     ? list.map((a, i) => rowHtml(a, activities.indexOf(a))).join('')
     : '<p style="color:var(--mu);font-size:13px;padding:8px 0">Sin actividades de este tipo.</p>';
 }
-
+ 
 function selectAct(idx) {
   const a = activities[idx];
   document.querySelectorAll('.act-row').forEach(r => r.classList.remove('sel'));
   document.querySelectorAll(`[data-idx="${idx}"]`).forEach(r => r.classList.add('sel'));
-
+ 
   const dc = document.getElementById('det-card');
   dc.style.display = 'block';
   document.getElementById('det-title').textContent =
     emoji(a.type) + ' ' + a.name + ' — ' + (a.distance/1000).toFixed(2) + ' km';
-
+ 
   setTimeout(() => {
     if (!mapDet) {
       mapDet = L.map('map-det');
@@ -507,7 +507,7 @@ function selectAct(idx) {
     }
     drawRoute(a, mapDet);
   }, 80);
-
+ 
   const pace = a.average_speed ? fmtPace(1000/a.average_speed) : '--';
   document.getElementById('det-stats').innerHTML = [
     {l:'Distancia',    v:(a.distance/1000).toFixed(2)+' km'},
@@ -520,16 +520,16 @@ function selectAct(idx) {
     <div class="stat-lbl">${s.l}</div>
     <div class="stat-val" style="font-size:16px">${s.v}</div>
   </div>`).join('');
-
+ 
   dc.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
-
+ 
 // ── HR ZONES ───────────────────────────────────────
 function renderHR() {
   const hrActs = activities.filter(a => a.average_heartrate);
   const avgHR  = hrActs.length ? Math.round(hrActs.reduce((s,a)=>s+a.average_heartrate,0)/hrActs.length) : 0;
   const maxHR  = hrActs.length ? Math.round(Math.max(...hrActs.map(a=>a.max_heartrate||0))) : 0;
-
+ 
   // Calcular distribución real por FC promedio vs FC máx estimada (190)
   const maxHRest = 190;
   const zCount = [0,0,0,0,0];
@@ -546,14 +546,14 @@ function renderHR() {
   // Ajustar a 100%
   const diff = 100 - zPct.reduce((s,v)=>s+v,0);
   zPct[2] = Math.max(0, zPct[2] + diff);
-
+ 
   document.getElementById('hr-stats').innerHTML = [
     {l:'FC promedio', v:avgHR||'--', u:'bpm', n:'Zona 3 aeróbico'},
     {l:'FC máxima',   v:maxHR||'--', u:'bpm', n:'pico registrado'},
     {l:'FC reposo',   v:'--',        u:'bpm', n:'no disponible en API'},
     {l:'Actividades con FC', v:hrActs.length, u:'', n:'de '+activities.length+' total'},
   ].map(s=>`<div class="stat"><div class="stat-lbl">${s.l}</div><div class="stat-val" style="font-size:${String(s.v).length>4?'16':'21'}px">${s.v}<em>${s.u}</em></div><div class="stat-note">${s.n}</div></div>`).join('');
-
+ 
   const zDefs = [
     {nm:'Z1 Recup.',  color:'#1d4ed8'},
     {nm:'Z2 Aerób.',  color:'#059669'},
@@ -570,7 +570,7 @@ function renderHR() {
         </div>
       </div>
     </div>`).join('');
-
+ 
   const rc = hrActs.slice(0,12).reverse();
   const lb = rc.map(a => fmtDate(a.start_date));
   mkChart('hr-chart','line', lb,
@@ -578,7 +578,7 @@ function renderHR() {
      {label:'FC máxima',  data:rc.map(a=>Math.round(a.max_heartrate||a.average_heartrate+20)),borderColor:'#ef4444',borderDash:[5,3],backgroundColor:'transparent',tension:.4,pointRadius:3,pointBackgroundColor:'#ef4444'}],
     {min:110});
 }
-
+ 
 // ── TRENDS ─────────────────────────────────────────
 function renderTrends() {
   const byW = {};
@@ -592,13 +592,13 @@ function renderTrends() {
   });
   const weeks = Object.values(byW).reverse().slice(0,10).reverse();
   const lbs   = weeks.map(w=>w.lb);
-
+ 
   mkChart('km-chart',   'bar', lbs, [{label:'km',data:weeks.map(w=>+w.km.toFixed(1)),backgroundColor:'#FC4C02',borderRadius:5,borderSkipped:false}]);
   mkChart('pace-chart', 'line',lbs, [{label:'min/km',data:weeks.map(w=>w.pace.length?+(w.pace.reduce((s,p)=>s+p,0)/w.pace.length).toFixed(2):null),borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,.1)',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#378ADD',spanGaps:true}],
     {cbY:v=>{const m=Math.floor(v),s=Math.round((v-m)*60);return m+':'+(s<10?'0':'')+s}});
   mkChart('elev-chart', 'bar', lbs, [{label:'m',data:weeks.map(w=>Math.round(w.elev)),backgroundColor:'#22a851',borderRadius:5,borderSkipped:false}]);
 }
-
+ 
 // ── MAP ────────────────────────────────────────────
 function drawRoute(activity, map) {
   if (!activity) return;
@@ -611,7 +611,7 @@ function drawRoute(activity, map) {
   L.circleMarker(coords[coords.length-1],{radius:7,color:'#ef4444',fillColor:'#ef4444',fillOpacity:1}).addTo(map);
   map.fitBounds(poly.getBounds(),{padding:[30,30]});
 }
-
+ 
 function decodePolyline(enc) {
   let i=0,lat=0,lng=0,out=[];
   while(i<enc.length){
@@ -622,14 +622,14 @@ function decodePolyline(enc) {
   }
   return out;
 }
-
+ 
 // ── DEMO ───────────────────────────────────────────
 function loadDemo() {
   athlete = {firstname:'Carlos',lastname:'Demo',city:'Madrid'};
   activities = genDemo();
   showApp();
 }
-
+ 
 function genDemo() {
   const tpl=[
     {name:'Carrera Retiro',    type:'Run', km:8.4, mink:5.05,hr:145,hrM:168,el:65,
@@ -658,14 +658,14 @@ function genDemo() {
       map:{summary_polyline:t.poly}};
   });
 }
-
+ 
 // ── UTILS ──────────────────────────────────────────
 function emoji(t){return t==='Run'?'🏃':t==='Ride'?'🚴':t==='Swim'?'🏊':t==='Hike'?'🥾':'🏋️'}
 function fmtTime(s){const h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h?`${h}h ${m}m`:`${m}min`}
 function fmtPace(secs){const m=Math.floor(secs/60),s=Math.round(secs%60);return `${m}:${s<10?'0':''}${s}`}
 function fmtDate(d){return new Date(d).toLocaleDateString('es-ES',{day:'numeric',month:'short'})}
 function isoWeek(d){const t=new Date(d);t.setHours(0,0,0,0);t.setDate(t.getDate()+4-(t.getDay()||7));return Math.ceil(((t-new Date(t.getFullYear(),0,1))/86400000+1)/7)}
-
+ 
 function rowHtml(a,idx){
   const pace=a.average_speed?fmtPace(1000/a.average_speed):'--';
   return `<div class="act-row" data-idx="${idx}" onclick="selectAct(${idx})">
@@ -682,7 +682,7 @@ function rowHtml(a,idx){
     </div>
   </div>`;
 }
-
+ 
 function mkChart(id,type,labels,datasets,extra={}){
   const c=document.getElementById(id);
   const ex=Chart.getChart(c);if(ex)ex.destroy();
@@ -694,13 +694,13 @@ function mkChart(id,type,labels,datasets,extra={}){
       ...(extra.cbY?{ticks:{...tk.ticks,callback:extra.cbY}}:{})}}
   }});
 }
-
+ 
 function showLoading(msg){
   document.getElementById('loading-msg').textContent=msg||'Cargando…';
   document.getElementById('loading').style.display='flex';
 }
 function hideLoading(){document.getElementById('loading').style.display='none';}
-
+ 
 function logout(){
   localStorage.removeItem('strava_token');
   activities=[];athlete={};filterType='all';
@@ -713,3 +713,4 @@ function logout(){
 </script>
 </body>
 </html>
+ 

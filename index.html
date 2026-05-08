@@ -356,6 +356,8 @@ function startOAuth() {
     + '&redirect_uri='   + encodeURIComponent(REDIRECT)
     + '&approval_prompt=auto'
     + '&scope='          + SCOPES;
+ console.log(authUrl);
+alert(authUrl);
   window.location.href = authUrl;
 }
  

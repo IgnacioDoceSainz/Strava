@@ -283,14 +283,17 @@ function startOAuth(){
 async function loadApp(token,savedAth){
   showLoading('Cargando actividades…');
   try{
-    const needAth=!savedAth?.id;
+    // Always fetch fresh athlete to get up-to-date shoes/gear
     const [ath,acts]=await Promise.all([
-      needAth?apiFetch('/athlete',token):Promise.resolve(savedAth),
+      apiFetch('/athlete',token),
       apiFetch('/athlete/activities?per_page=100&page=1',token)
     ]);
     athlete=ath; activities=acts;
+    // Load full gear details for each shoe
     if(ath.shoes?.length){
       gear=await Promise.all(ath.shoes.map(s=>apiFetch('/gear/'+s.id,token).catch(()=>s)));
+    } else {
+      gear=[];
     }
     localStorage.setItem('strava_athlete',JSON.stringify(ath));
     hideLoading(); showApp();
@@ -399,8 +402,8 @@ function renderResumen(){
   const elev=pool.reduce((s,a)=>s+(a.total_elevation_gain||0),0);
   const hrA=pool.filter(a=>a.average_heartrate);
   const avgHR=hrA.length?hrA.reduce((s,a)=>s+a.average_heartrate,0)/hrA.length:0;
-  const runs=pool.filter(a=>a.type==='Run'&&a.average_speed);
-  const pace=runs.length?runs.reduce((s,a)=>s+1000/a.average_speed,0)/runs.length:0;
+  const runs=pool.filter(a=>a.type==='Run'&&a.average_speed>0);
+  const pace=runs.length?runs.reduce((s,a)=>s+(1000/a.average_speed),0)/runs.length:0;
   document.getElementById('res-stats').innerHTML=[
     {l:'Kilómetros',v:km.toFixed(1),u:'km',n:pool.length+' actividades'},
     {l:'Tiempo activo',v:fmtTime(secs),u:'',n:'en movimiento'},
@@ -434,7 +437,7 @@ function selectAct(idx){
   document.querySelectorAll(`[data-idx="${idx}"]`).forEach(r=>r.classList.add('sel'));
   const det=document.getElementById('act-det');det.style.display='block';
   document.getElementById('det-title').textContent=`${emoji(a.type)} ${a.name}`;
-  const pace=a.average_speed?fmtPace(1000/a.average_speed):'—';
+  const pace=paceFromActivity(a);
   document.getElementById('det-stats').innerHTML=[
     {l:'Distancia',v:(a.distance/1000).toFixed(2),u:'km'},
     {l:'Tiempo',v:fmtTime(a.moving_time),u:''},
@@ -450,7 +453,11 @@ function selectAct(idx){
     drawRoute(a,mapDet);
   },80);
   const splits=genSplits(a);
-  mkChart('det-pace','line',splits.map((_,i)=>'km '+(i+1)),[{label:'ritmo',data:splits.map(s=>s.pace),borderColor:'#FC4C02',backgroundColor:'rgba(252,76,2,.1)',fill:true,tension:.3,pointRadius:2,pointBackgroundColor:'#FC4C02'}],{paceMargin:true,min:Math.min(...splits.map(s=>s.pace))-.5,max:Math.max(...splits.map(s=>s.pace))+.5,cbY:v=>{const m=Math.floor(v),s=Math.round((v-m)*60);return m+':'+(s<10?'0':'')+s}});
+  const paceMin=Math.min(...splits)-15, paceMax=Math.max(...splits)+15;
+  mkChart('det-pace','line',splits.map((_,i)=>'km '+(i+1)),[{label:'ritmo',data:splits,borderColor:'#FC4C02',backgroundColor:'rgba(252,76,2,.1)',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:'#FC4C02'}],{
+    paceMargin:true,min:paceMin,max:paceMax,
+    cbY:v=>{const m=Math.floor(v/60),s=Math.round(v%60);return m+':'+(s<10?'0':'')+s}
+  });
   const hrWrap=document.getElementById('det-hr-wrap');
   if(a.average_heartrate){
     hrWrap.innerHTML='<canvas id="det-hr"></canvas>';
@@ -550,16 +557,34 @@ function mk(n,t,km,mk,hr,hrM,el,daysAgo,poly){
 function emoji(t){return t==='Run'?'🏃':t==='Ride'?'🚴':t==='Swim'?'🏊':t==='Hike'?'🥾':'🏋️'}
 function fmtTime(s){const h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h?`${h}h ${m}m`:`${m}min`}
 function fmtTimeFull(s){const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=Math.round(s%60);return h?`${h}:${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`:`${m}:${String(sc).padStart(2,'0')}`}
-function fmtPace(s){const m=Math.floor(s/60),sc=Math.round(s%60);return `${m}:${sc<10?'0':''}${sc}`}
+// fmtPace: input = seconds per km → output "m:ss"
+function fmtPace(secsPerKm){
+  if(!secsPerKm||isNaN(secsPerKm)||secsPerKm<=0) return '—';
+  const total=Math.round(secsPerKm);
+  const m=Math.floor(total/60);
+  const sc=total%60;
+  return `${m}:${sc<10?'0':''}${sc}`;
+}
+// paceFromActivity: given a Strava activity returns pace string (min:ss /km)
+function paceFromActivity(a){
+  if(!a.average_speed||a.average_speed<=0) return '—';
+  // average_speed is in m/s → convert to secs/km
+  return fmtPace(1000/a.average_speed);
+}
 function fmtDate(d){return new Date(d).toLocaleDateString('es-ES',{day:'numeric',month:'short'})}
 function fmtDateLong(d){return new Date(d).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'})}
 function weekRange(d){const day=d.getDay()||7,start=new Date(d);start.setDate(d.getDate()-day+1);start.setHours(0,0,0,0);const end=new Date(start);end.setDate(start.getDate()+7);return{start,end};}
 function last10Weeks(){const w=[];for(let i=9;i>=0;i--){const ref=new Date();ref.setDate(ref.getDate()-i*7);const{start,end}=weekRange(ref);w.push({start,end,label:start.toLocaleDateString('es-ES',{day:'numeric',month:'short'})});}return w;}
 function last8Weeks(){return last10Weeks();}
-function genSplits(a){const n=Math.max(1,Math.round(a.distance/1000)),base=a.average_speed?1000/a.average_speed/60:5;return Array.from({length:n},()=>({pace:+(base+((Math.random()-.5)*.3)).toFixed(2)}));}
+function genSplits(a){
+  // returns array of secs/km per split, with small realistic variance
+  const n=Math.max(1,Math.round(a.distance/1000));
+  const baseSecs=a.average_speed>0?(1000/a.average_speed):300;
+  return Array.from({length:n},()=>Math.round(baseSecs+((Math.random()-.5)*20)));
+}
 function genHRSplits(a){const n=Math.max(1,Math.round(a.distance/1000)),base=a.average_heartrate||150;return Array.from({length:n},(_,i)=>Math.round(base*(0.95+i/n*.08)+((Math.random()-.5)*6)));}
 function actRowHtml(a,idx){
-  const pace=a.average_speed?fmtPace(1000/a.average_speed):'—';
+  const pace=paceFromActivity(a);
   return `<div class="act-row" data-idx="${idx}" onclick="selectAct(${idx})">
     <div class="act-l"><div class="act-ic">${emoji(a.type)}</div>
     <div><div class="act-nm">${a.name}</div>

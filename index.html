@@ -174,8 +174,13 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
       </div>
       <div id="pf-race"></div>
       <div class="card">
-        <div class="card-title">km por deporte · últimas 8 semanas</div>
-        <div class="sport-legend" id="pf-legend"></div>
+        <div class="card-title">km por deporte · últimas 10 semanas</div>
+        <div class="pills" id="pf-sport-pills" style="margin-bottom:.75rem">
+          <button class="pill on" onclick="pfSport('Run',this)">🏃 Carrera</button>
+          <button class="pill" onclick="pfSport('Ride',this)">🚴 Ciclismo</button>
+          <button class="pill" onclick="pfSport('Swim',this)">🏊 Natación</button>
+          <button class="pill" onclick="pfSport('all',this)">Todos</button>
+        </div>
         <div style="position:relative;height:220px"><canvas id="pf-chart"></canvas></div>
       </div>
       <div class="card">
@@ -200,8 +205,8 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
       </div>
       <div class="sg" id="res-stats"></div>
       <div class="two-col">
-        <div class="card"><div class="card-title">km semanales</div><div style="position:relative;height:180px"><canvas id="res-km"></canvas></div></div>
-        <div class="card"><div class="card-title">elevación semanal (m)</div><div style="position:relative;height:180px"><canvas id="res-elev"></canvas></div></div>
+        <div class="card"><div class="card-title">km · últimas 10 semanas</div><div style="position:relative;height:180px"><canvas id="res-km"></canvas></div></div>
+        <div class="card"><div class="card-title">elevación · últimas 10 semanas (m)</div><div style="position:relative;height:180px"><canvas id="res-elev"></canvas></div></div>
       </div>
       <div class="card"><div class="card-title">actividades esta semana</div><div id="res-week"></div></div>
       <div id="res-race"></div>
@@ -247,7 +252,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 const CLIENT_ID='237317';
 const REDIRECT=window.location.origin+window.location.pathname.replace(/\/$/,'');
 let activities=[],athlete={},gear=[];
-let filterType='all',resSportType='all',resYearType='year',prSportType='Run';
+let filterType='all',resSportType='all',resYearType='year',prSportType='Run',pfSportType='Run';
 let mapDet=null;
  
 window.addEventListener('DOMContentLoaded',async()=>{
@@ -351,15 +356,10 @@ function renderPerfil(){
     {l:'Total histórico',v:totKm.toFixed(0),u:'km',n:'desde inicio'},
     {l:'Ritmo medio',v:avgP?fmtPace(avgP):'—',u:'min/km',n:'carrera'},
   ].map(s=>`<div class="st"><div class="st-l">${s.l}</div><div class="st-v">${s.v}<em>${s.u}</em></div><div class="st-n">${s.n}</div></div>`).join('');
-  document.getElementById('pf-race').innerHTML=`<div class="race-card"><div class="race-label">📅 Próxima carrera</div><div class="race-name">No disponible via API de Strava</div><div class="race-meta">La API pública de Strava no incluye el calendario de eventos</div></div>`;
-  // chart
-  const w8=last8Weeks();
-  const sports=[{k:'Run',c:'#FC4C02',l:'Carrera'},{k:'Ride',c:'#3b82f6',l:'Ciclismo'},{k:'Swim',c:'#1db954',l:'Natación'}];
-  document.getElementById('pf-legend').innerHTML=sports.map(s=>`<div class="sl-item"><span class="sl-dot" style="background:${s.c}"></span>${s.l}</div>`).join('');
-  mkChart('pf-chart','line',w8.map(w=>w.label),sports.map(s=>({
-    label:s.l,data:w8.map(w=>+activities.filter(a=>a.type===s.k&&new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((sum,a)=>sum+a.distance/1000,0).toFixed(1)),
-    borderColor:s.c,backgroundColor:s.c+'22',fill:false,tension:.4,pointRadius:3,pointBackgroundColor:s.c
-  })));
+  const valenciaDate=new Date('2026-12-06');const daysLeft=Math.ceil((valenciaDate-new Date())/86400000);
+  document.getElementById('pf-race').innerHTML=`<div class="race-card"><div style="display:flex;align-items:center;justify-content:space-between;gap:1rem"><div><div class="race-label">📅 Próxima carrera</div><div class="race-name">Maratón de Valencia 2026</div><div class="race-meta">6 de diciembre 2026 · Valencia, España · 42.195 km</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:2rem;font-weight:800;color:var(--or);letter-spacing:-.04em;line-height:1">${daysLeft}</div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-top:2px">días</div></div></div></div>`;
+  // chart - default to Run
+  pfSportType='Run'; drawPfChart();
   // shoes
   const shoesEl=document.getElementById('pf-shoes');
   const shoes=gear.length?gear:(athlete.shoes||[]);
@@ -377,6 +377,18 @@ function renderPerfil(){
   }).join('');
 }
  
+function pfSport(t,el){pfSportType=t;document.querySelectorAll('#pf-sport-pills .pill').forEach(p=>p.classList.remove('on'));el.classList.add('on');drawPfChart();}
+function drawPfChart(){
+  const w10=last10Weeks();const lbs=w10.map(w=>w.label);
+  const sportMap={Run:{c:'#FC4C02',l:'Carrera'},Ride:{c:'#3b82f6',l:'Ciclismo'},Swim:{c:'#1db954',l:'Natación'}};
+  const sports=pfSportType==='all'?Object.keys(sportMap):[pfSportType];
+  const datasets=sports.map(k=>{
+    const{c,l}=sportMap[k];
+    return{label:l,data:w10.map(w=>+activities.filter(a=>a.type===k&&new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+a.distance/1000,0).toFixed(1)),
+    borderColor:c,backgroundColor:c+'22',fill:pfSportType!=='all',tension:.3,spanGaps:true};
+  });
+  mkChart('pf-chart','line',lbs,datasets);
+}
 // ══ RESUMEN ══
 function renderResumen(){
   const yr=new Date().getFullYear();
@@ -397,13 +409,14 @@ function renderResumen(){
     {l:'Ritmo medio',v:pace?fmtPace(pace):'—',u:'min/km',n:'carrera'},
     {l:'Actividades',v:pool.length,u:'',n:resYearType==='year'?yr+'':'histórico'},
   ].map(s=>`<div class="st"><div class="st-l">${s.l}</div><div class="st-v">${s.v}<em>${s.u}</em></div><div class="st-n">${s.n}</div></div>`).join('');
-  const w8=last8Weeks();const lbs=w8.map(w=>w.label);
-  mkChart('res-km','bar',lbs,[{label:'km',data:w8.map(w=>+pool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+a.distance/1000,0).toFixed(1)),backgroundColor:'#FC4C02',borderRadius:5,borderSkipped:false}]);
-  mkChart('res-elev','bar',lbs,[{label:'m',data:w8.map(w=>Math.round(pool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+(a.total_elevation_gain||0),0))),backgroundColor:'#3b82f6',borderRadius:5,borderSkipped:false}]);
+  const w10=last10Weeks();const lbs=w10.map(w=>w.label);
+  mkChart('res-km','line',lbs,[{label:'km',data:w10.map(w=>+pool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+a.distance/1000,0).toFixed(1)),borderColor:'#FC4C02',backgroundColor:'rgba(252,76,2,.15)',fill:true,spanGaps:true}]);
+  mkChart('res-elev','line',lbs,[{label:'m',data:w10.map(w=>Math.round(pool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+(a.total_elevation_gain||0),0))),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.15)',fill:true,spanGaps:true}]);
   const{start:ws}=weekRange(new Date());
   const wkA=activities.filter(a=>new Date(a.start_date)>=ws);
   document.getElementById('res-week').innerHTML=wkA.length?wkA.map(a=>actRowHtml(a,activities.indexOf(a))).join(''):'<div class="empty">Sin actividades esta semana</div>';
-  document.getElementById('res-race').innerHTML=`<div class="race-card"><div class="race-label">📅 Próxima carrera</div><div class="race-name">No disponible via API de Strava</div><div class="race-meta">La API pública de Strava no incluye el calendario de eventos</div></div>`;
+  const vDate=new Date('2026-12-06');const dLeft=Math.ceil((vDate-new Date())/86400000);
+  document.getElementById('res-race').innerHTML=`<div class="race-card"><div style="display:flex;align-items:center;justify-content:space-between;gap:1rem"><div><div class="race-label">📅 Próxima carrera</div><div class="race-name">Maratón de Valencia 2026</div><div class="race-meta">6 de diciembre 2026 · Valencia, España · 42.195 km</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:2rem;font-weight:800;color:var(--or);letter-spacing:-.04em;line-height:1">${dLeft}</div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-top:2px">días</div></div></div></div>`;
 }
 function resSport(t,el){resSportType=t;document.querySelectorAll('#res-tabs .sport-tab').forEach(x=>x.classList.remove('on'));el.classList.add('on');renderResumen();}
 function resYear(t,el){resYearType=t;document.querySelectorAll('.yt-btn').forEach(x=>x.classList.remove('on'));el.classList.add('on');renderResumen();}
@@ -437,7 +450,7 @@ function selectAct(idx){
     drawRoute(a,mapDet);
   },80);
   const splits=genSplits(a);
-  mkChart('det-pace','line',splits.map((_,i)=>'km '+(i+1)),[{label:'ritmo',data:splits.map(s=>s.pace),borderColor:'#FC4C02',backgroundColor:'rgba(252,76,2,.1)',fill:true,tension:.3,pointRadius:2,pointBackgroundColor:'#FC4C02'}],{cbY:v=>{const m=Math.floor(v),s=Math.round((v-m)*60);return m+':'+(s<10?'0':'')+s}});
+  mkChart('det-pace','line',splits.map((_,i)=>'km '+(i+1)),[{label:'ritmo',data:splits.map(s=>s.pace),borderColor:'#FC4C02',backgroundColor:'rgba(252,76,2,.1)',fill:true,tension:.3,pointRadius:2,pointBackgroundColor:'#FC4C02'}],{paceMargin:true,min:Math.min(...splits.map(s=>s.pace))-.5,max:Math.max(...splits.map(s=>s.pace))+.5,cbY:v=>{const m=Math.floor(v),s=Math.round((v-m)*60);return m+':'+(s<10?'0':'')+s}});
   const hrWrap=document.getElementById('det-hr-wrap');
   if(a.average_heartrate){
     hrWrap.innerHTML='<canvas id="det-hr"></canvas>';
@@ -541,7 +554,8 @@ function fmtPace(s){const m=Math.floor(s/60),sc=Math.round(s%60);return `${m}:${
 function fmtDate(d){return new Date(d).toLocaleDateString('es-ES',{day:'numeric',month:'short'})}
 function fmtDateLong(d){return new Date(d).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'})}
 function weekRange(d){const day=d.getDay()||7,start=new Date(d);start.setDate(d.getDate()-day+1);start.setHours(0,0,0,0);const end=new Date(start);end.setDate(start.getDate()+7);return{start,end};}
-function last8Weeks(){const w=[];for(let i=7;i>=0;i--){const ref=new Date();ref.setDate(ref.getDate()-i*7);const{start,end}=weekRange(ref);w.push({start,end,label:start.toLocaleDateString('es-ES',{day:'numeric',month:'short'})});}return w;}
+function last10Weeks(){const w=[];for(let i=9;i>=0;i--){const ref=new Date();ref.setDate(ref.getDate()-i*7);const{start,end}=weekRange(ref);w.push({start,end,label:start.toLocaleDateString('es-ES',{day:'numeric',month:'short'})});}return w;}
+function last8Weeks(){return last10Weeks();}
 function genSplits(a){const n=Math.max(1,Math.round(a.distance/1000)),base=a.average_speed?1000/a.average_speed/60:5;return Array.from({length:n},()=>({pace:+(base+((Math.random()-.5)*.3)).toFixed(2)}));}
 function genHRSplits(a){const n=Math.max(1,Math.round(a.distance/1000)),base=a.average_heartrate||150;return Array.from({length:n},(_,i)=>Math.round(base*(0.95+i/n*.08)+((Math.random()-.5)*6)));}
 function actRowHtml(a,idx){
@@ -558,8 +572,12 @@ function mkChart(id,type,labels,datasets,extra={}){
   const c=document.getElementById(id);if(!c)return;
   const ex=Chart.getChart(c);if(ex)ex.destroy();
   const tk={ticks:{color:'#555',font:{size:10,family:'DM Mono'}},grid:{color:'rgba(255,255,255,.04)'}};
-  new Chart(c,{type,data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-    scales:{x:tk,y:{...tk,...(extra.min!=null?{min:extra.min}:{}),...(extra.cbY?{ticks:{...tk.ticks,callback:extra.cbY}}:{})}}}});
+  // Force line charts to always show points
+  const ds=datasets.map(d=>type==='line'?{...d,pointRadius:5,pointHoverRadius:7,pointBorderWidth:2,pointBackgroundColor:d.borderColor,tension:.3}:d);
+  // For pace charts add extra margin on y axis
+  const yExtra=extra.paceMargin?{min:extra.min!=null?extra.min:undefined,max:extra.max!=null?extra.max:undefined}:{...(extra.min!=null?{min:extra.min}:{})};
+  new Chart(c,{type,data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+    scales:{x:tk,y:{...tk,...yExtra,...(extra.cbY?{ticks:{...tk.ticks,callback:extra.cbY}}:{})}}}});
 }
 function showLoading(m){document.getElementById('loading-msg').textContent=m||'Cargando…';document.getElementById('loading').style.display='flex';}
 function hideLoading(){document.getElementById('loading').style.display='none';}

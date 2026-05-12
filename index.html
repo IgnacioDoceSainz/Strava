@@ -227,10 +227,13 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
           <div class="card-title" id="det-title">—</div>
           <div class="det-hero" id="det-stats"></div>
           <div class="map-box" id="det-map"></div>
+          <div id="det-photos" style="margin-bottom:1rem"></div>
           <div class="two-col" style="margin-top:0">
             <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:.75rem">RITMO POR KM</div><div style="position:relative;height:160px"><canvas id="det-pace"></canvas></div></div>
             <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:.75rem">FRECUENCIA CARDÍACA</div><div style="position:relative;height:160px" id="det-hr-wrap"><canvas id="det-hr"></canvas></div></div>
           </div>
+          <div id="det-splits" style="margin-top:1rem"></div>
+          <div id="det-comments" style="margin-top:1rem"></div>
         </div>
       </div>
     </div>
@@ -427,46 +430,188 @@ function resYear(t,el){resYearType=t;document.querySelectorAll('.yt-btn').forEac
 // ══ ACTIVIDADES ══
 function renderActividades(){redrawActList();}
 function filterActs(t,el){filterType=t;document.querySelectorAll('#act-pills .pill').forEach(p=>p.classList.remove('on'));el.classList.add('on');redrawActList();document.getElementById('act-det').style.display='none';}
+ 
 function redrawActList(){
   const list=filterType==='all'?activities:activities.filter(a=>a.type===filterType);
-  document.getElementById('act-list').innerHTML=list.length?list.map(a=>actRowHtml(a,activities.indexOf(a))).join(''):'<div class="empty">Sin actividades</div>';
+  if(!list.length){document.getElementById('act-list').innerHTML='<div class="empty">Sin actividades</div>';return;}
+  // Group by month
+  const byMonth={};
+  list.forEach(a=>{
+    const d=new Date(a.start_date);
+    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const label=d.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+    if(!byMonth[key])byMonth[key]={label,acts:[]};
+    byMonth[key].acts.push(a);
+  });
+  let html='';
+  Object.keys(byMonth).sort((a,b)=>b.localeCompare(a)).forEach(key=>{
+    const{label,acts:monthActs}=byMonth[key];
+    const monthKm=monthActs.reduce((s,a)=>s+a.distance/1000,0);
+    html+=`<div style="margin-bottom:.25rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 8px 6px;border-bottom:1px solid var(--bd)">
+        <span style="font-family:var(--font-mono);font-size:11px;color:var(--or);letter-spacing:.06em;text-transform:uppercase">${label}</span>
+        <span style="font-family:var(--font-mono);font-size:11px;color:var(--mu)">${monthActs.length} actividades · ${monthKm.toFixed(0)} km</span>
+      </div>
+      ${monthActs.map(a=>actRowHtml(a,activities.indexOf(a))).join('')}
+    </div>`;
+  });
+  document.getElementById('act-list').innerHTML=html;
 }
-function selectAct(idx){
+ 
+async function selectAct(idx){
   const a=activities[idx];
   document.querySelectorAll('.act-row').forEach(r=>r.classList.remove('sel'));
   document.querySelectorAll(`[data-idx="${idx}"]`).forEach(r=>r.classList.add('sel'));
-  const det=document.getElementById('act-det');det.style.display='block';
+  const det=document.getElementById('act-det');
+  det.style.display='block';
   document.getElementById('det-title').textContent=`${emoji(a.type)} ${a.name}`;
+ 
+  // Use elapsed_time for display (matches what Strava shows)
+  const displayTime=a.elapsed_time||a.moving_time;
   const pace=paceFromActivity(a);
+ 
   document.getElementById('det-stats').innerHTML=[
-    {l:'Distancia',v:(a.distance/1000).toFixed(2),u:'km'},
-    {l:'Tiempo',v:fmtTime(a.moving_time),u:''},
-    {l:'Ritmo',v:pace,u:'min/km'},
-    {l:'Velocidad',v:a.average_speed?(a.average_speed*3.6).toFixed(1):'—',u:'km/h'},
-    {l:'Elevación',v:'↑'+(a.total_elevation_gain||0),u:'m'},
-    {l:'FC promedio',v:a.average_heartrate?Math.round(a.average_heartrate):'—',u:'bpm'},
-    {l:'FC máxima',v:a.max_heartrate?Math.round(a.max_heartrate):'—',u:'bpm'},
-    {l:'Calorías',v:a.calories?Math.round(a.calories):'—',u:'kcal'},
+    {l:'Distancia',     v:(a.distance/1000).toFixed(2),              u:'km'},
+    {l:'Tiempo',        v:fmtTime(displayTime),                       u:''},
+    {l:'Tiempo mov.',   v:fmtTime(a.moving_time),                     u:''},
+    {l:'Ritmo',         v:pace,                                       u:'min/km'},
+    {l:'Velocidad',     v:a.average_speed?(a.average_speed*3.6).toFixed(1):'—', u:'km/h'},
+    {l:'Elevación',     v:'↑'+(a.total_elevation_gain||0),            u:'m'},
+    {l:'FC promedio',   v:a.average_heartrate?Math.round(a.average_heartrate):'—', u:'bpm'},
+    {l:'FC máxima',     v:a.max_heartrate?Math.round(a.max_heartrate):'—',         u:'bpm'},
+    {l:'Calorías',      v:a.calories?Math.round(a.calories):'—',     u:'kcal'},
   ].map(s=>`<div class="det-stat"><div class="det-stat-l">${s.l}</div><div class="det-stat-v">${s.v}<em>${s.u}</em></div></div>`).join('');
+ 
+  // Map
   setTimeout(()=>{
     if(!mapDet){mapDet=L.map('det-map');L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© CartoDB',maxZoom:19}).addTo(mapDet);}
     drawRoute(a,mapDet);
   },80);
-  const splits=genSplits(a);
-  const paceMin=Math.min(...splits)-15, paceMax=Math.max(...splits)+15;
-  mkChart('det-pace','line',splits.map((_,i)=>'km '+(i+1)),[{label:'ritmo',data:splits,borderColor:'#FC4C02',backgroundColor:'rgba(252,76,2,.1)',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:'#FC4C02'}],{
-    paceMargin:true,min:paceMin,max:paceMax,
-    cbY:v=>{const m=Math.floor(v/60),s=Math.round(v%60);return m+':'+(s<10?'0':'')+s}
-  });
-  const hrWrap=document.getElementById('det-hr-wrap');
-  if(a.average_heartrate){
-    hrWrap.innerHTML='<canvas id="det-hr"></canvas>';
-    const hrs=genHRSplits(a);
-    mkChart('det-hr','line',hrs.map((_,i)=>'km '+(i+1)),[{label:'FC',data:hrs,borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,.1)',fill:true,tension:.3,pointRadius:2,pointBackgroundColor:'#ef4444'}],{min:Math.round(a.average_heartrate)-20});
-  } else {
-    hrWrap.innerHTML='<div class="empty" style="height:160px;display:flex;align-items:center;justify-content:center">Sin datos de FC</div>';
+ 
+  // Fetch full activity detail (real splits, photos, comments)
+  showDetLoading(true);
+  try{
+    const [detail, photos, comments] = await Promise.all([
+      apiFetch(`/activities/${a.id}?include_all_efforts=false`),
+      apiFetch(`/activities/${a.id}/photos?size=600`).catch(()=>[]),
+      apiFetch(`/activities/${a.id}/comments`).catch(()=>[]),
+    ]);
+ 
+    // Real splits from API
+    const splits=detail.splits_metric||[];
+    if(splits.length){
+      const paceData=splits.map(s=>s.moving_time>0?Math.round(1000/(s.distance/s.moving_time)):0).filter(v=>v>0&&v<900);
+      const labels=splits.map((_,i)=>'km '+(i+1));
+      const paceMin=Math.min(...paceData)-15, paceMax=Math.max(...paceData)+15;
+      mkChart('det-pace','line',labels,[{
+        label:'ritmo',data:paceData,borderColor:'#FC4C02',
+        backgroundColor:'rgba(252,76,2,.1)',fill:true,tension:.3,
+        pointRadius:4,pointBackgroundColor:'#FC4C02'
+      }],{paceMargin:true,min:paceMin,max:paceMax,
+        cbY:v=>{const m=Math.floor(v/60),s=Math.round(v%60);return m+':'+(s<10?'0':'')+s}});
+ 
+      // Real HR per split if available
+      const hrData=splits.map(s=>s.average_heartrate||null);
+      const hrWrap=document.getElementById('det-hr-wrap');
+      if(hrData.some(v=>v)){
+        hrWrap.innerHTML='<canvas id="det-hr"></canvas>';
+        mkChart('det-hr','line',labels,[{
+          label:'FC',data:hrData,borderColor:'#ef4444',
+          backgroundColor:'rgba(239,68,68,.1)',fill:true,tension:.3,
+          pointRadius:3,pointBackgroundColor:'#ef4444',spanGaps:true
+        }],{min:Math.min(...hrData.filter(Boolean))-10});
+      } else if(a.average_heartrate){
+        hrWrap.innerHTML='<canvas id="det-hr"></canvas>';
+        const hrs=genHRSplits(a,splits.length);
+        mkChart('det-hr','line',labels,[{label:'FC',data:hrs,borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,.1)',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:'#ef4444'}],{min:Math.round(a.average_heartrate)-20});
+      } else {
+        hrWrap.innerHTML='<div class="empty" style="height:160px;display:flex;align-items:center;justify-content:center">Sin datos de FC</div>';
+      }
+    } else {
+      // fallback simulated
+      const sim=genSplits(a);
+      const paceMin=Math.min(...sim)-15,paceMax=Math.max(...sim)+15;
+      mkChart('det-pace','line',sim.map((_,i)=>'km '+(i+1)),[{label:'ritmo',data:sim,borderColor:'#FC4C02',backgroundColor:'rgba(252,76,2,.1)',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:'#FC4C02'}],{paceMargin:true,min:paceMin,max:paceMax,cbY:v=>{const m=Math.floor(v/60),s=Math.round(v%60);return m+':'+(s<10?'0':'')+s}});
+      const hrWrap=document.getElementById('det-hr-wrap');
+      if(a.average_heartrate){hrWrap.innerHTML='<canvas id="det-hr"></canvas>';const hrs=genHRSplits(a,sim.length);mkChart('det-hr','line',sim.map((_,i)=>'km '+(i+1)),[{label:'FC',data:hrs,borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,.1)',fill:true,tension:.3,pointRadius:2,pointBackgroundColor:'#ef4444'}],{min:Math.round(a.average_heartrate)-20});}
+      else{document.getElementById('det-hr-wrap').innerHTML='<div class="empty" style="height:160px;display:flex;align-items:center;justify-content:center">Sin datos de FC</div>';}
+    }
+ 
+    // Splits table
+    if(splits.length){
+      const splitRows=splits.map((s,i)=>{
+        const pace=s.moving_time>0?Math.round(1000/(s.distance/s.moving_time)):0;
+        const paceStr=pace?fmtPace(pace):'—';
+        const elev=s.elevation_difference!=null?`${s.elevation_difference>0?'+':''}${Math.round(s.elevation_difference)}m`:'—';
+        return `<tr>
+          <td style="padding:7px 10px;font-weight:600;color:var(--mu)">km ${i+1}</td>
+          <td style="padding:7px 10px;font-weight:700;color:var(--or)">${paceStr}</td>
+          <td style="padding:7px 10px">${s.average_heartrate?Math.round(s.average_heartrate)+' bpm':'—'}</td>
+          <td style="padding:7px 10px;color:${s.elevation_difference>0?'#ef4444':'#1db954'}">${elev}</td>
+        </tr>`;
+      }).join('');
+      document.getElementById('det-splits').innerHTML=`
+        <div class="card-title">Parciales</div>
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:12px">
+          <thead><tr style="border-bottom:1px solid var(--bd)">
+            <th style="padding:6px 10px;text-align:left;color:var(--mu);font-weight:500">KM</th>
+            <th style="padding:6px 10px;text-align:left;color:var(--mu);font-weight:500">Ritmo</th>
+            <th style="padding:6px 10px;text-align:left;color:var(--mu);font-weight:500">FC</th>
+            <th style="padding:6px 10px;text-align:left;color:var(--mu);font-weight:500">Desn.</th>
+          </tr></thead>
+          <tbody>${splitRows}</tbody>
+        </table></div>`;
+    } else {
+      document.getElementById('det-splits').innerHTML='';
+    }
+ 
+    // Photos
+    const photoEl=document.getElementById('det-photos');
+    if(photos.length){
+      photoEl.innerHTML=`<div class="card-title">Fotos (${photos.length})</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px">
+        ${photos.map(p=>`<img src="${p.urls?.['600']||p.urls?.['100']||''}" alt="foto actividad" style="width:100%;height:140px;object-fit:cover;border-radius:10px;border:1px solid var(--bd)" onerror="this.style.display='none'">`).join('')}
+        </div>`;
+    } else {
+      photoEl.innerHTML='';
+    }
+ 
+    // Comments
+    const commEl=document.getElementById('det-comments');
+    if(comments.length){
+      commEl.innerHTML=`<div class="card-title">Comentarios (${comments.length})</div>`+
+        comments.map(c=>`<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)">
+          <div style="width:32px;height:32px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--or)">
+            ${c.athlete?.profile_medium?`<img src="${c.athlete.profile_medium}" style="width:100%;height:100%;object-fit:cover" alt="">`:(c.athlete?.firstname||'?')[0]}
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:600">${c.athlete?.firstname||''} ${c.athlete?.lastname||''}</div>
+            <div style="font-family:var(--font-mono);font-size:12px;color:var(--mu);margin-top:2px">${c.text||''}</div>
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--fa);margin-top:3px">${fmtDateLong(c.created_at)}</div>
+          </div>
+        </div>`).join('');
+    } else {
+      commEl.innerHTML='';
+    }
+ 
+  } catch(e){
+    console.error('Error loading activity detail:',e);
+    // fallback to simulated splits
+    const sim=genSplits(a);
+    const paceMin=Math.min(...sim)-15,paceMax=Math.max(...sim)+15;
+    mkChart('det-pace','line',sim.map((_,i)=>'km '+(i+1)),[{label:'ritmo',data:sim,borderColor:'#FC4C02',backgroundColor:'rgba(252,76,2,.1)',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:'#FC4C02'}],{paceMargin:true,min:paceMin,max:paceMax,cbY:v=>{const m=Math.floor(v/60),s=Math.round(v%60);return m+':'+(s<10?'0':'')+s}});
+  } finally {
+    showDetLoading(false);
   }
+ 
   det.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+ 
+function showDetLoading(on){
+  let el=document.getElementById('det-loading');
+  if(!el){el=document.createElement('div');el.id='det-loading';el.style.cssText='text-align:center;padding:1rem;font-family:var(--font-mono);font-size:12px;color:var(--mu)';el.textContent='Cargando detalles…';document.getElementById('act-det').appendChild(el);}
+  el.style.display=on?'block':'none';
 }
  
 // ══ PRs ══
@@ -582,13 +727,17 @@ function genSplits(a){
   const baseSecs=a.average_speed>0?(1000/a.average_speed):300;
   return Array.from({length:n},()=>Math.round(baseSecs+((Math.random()-.5)*20)));
 }
-function genHRSplits(a){const n=Math.max(1,Math.round(a.distance/1000)),base=a.average_heartrate||150;return Array.from({length:n},(_,i)=>Math.round(base*(0.95+i/n*.08)+((Math.random()-.5)*6)));}
+function genHRSplits(a,n){const count=n||Math.max(1,Math.round(a.distance/1000)),base=a.average_heartrate||150;return Array.from({length:count},(_,i)=>Math.round(base*(0.95+i/count*.08)+((Math.random()-.5)*6)));}
 function actRowHtml(a,idx){
   const pace=paceFromActivity(a);
+  const displayTime=a.elapsed_time||a.moving_time;
+  const photoUrl=a.photos?.primary?.urls?.['100']||'';
+  const photoHtml=photoUrl?`<img src="${photoUrl}" alt="" style="width:36px;height:36px;object-fit:cover;border-radius:8px;border:1px solid var(--bd);flex-shrink:0" onerror="this.style.display='none'">`:
+    `<div class="act-ic">${emoji(a.type)}</div>`;
   return `<div class="act-row" data-idx="${idx}" onclick="selectAct(${idx})">
-    <div class="act-l"><div class="act-ic">${emoji(a.type)}</div>
+    <div class="act-l">${photoHtml}
     <div><div class="act-nm">${a.name}</div>
-    <div class="act-mt">${fmtDate(a.start_date)} · ${fmtTime(a.moving_time)}${a.average_heartrate?' · ❤ '+Math.round(a.average_heartrate)+'bpm':''}</div></div></div>
+    <div class="act-mt">${fmtDate(a.start_date)} · ${fmtTime(displayTime)}${a.average_heartrate?' · ❤ '+Math.round(a.average_heartrate)+'bpm':''}</div></div></div>
     <div class="act-r"><div class="act-km">${(a.distance/1000).toFixed(2)}<em style="font-size:11px;color:var(--mu);font-family:var(--font-mono);margin-left:2px">km</em></div>
     <div class="act-sb">${pace} · ↑${Math.round(a.total_elevation_gain||0)}m</div></div>
   </div>`;
@@ -618,4 +767,3 @@ function logout(){
 </script>
 </body>
 </html>
- 

@@ -119,6 +119,8 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 .pr-trophy{position:absolute;top:12px;right:14px;font-size:18px;opacity:.7}
 .empty{text-align:center;padding:2rem;font-family:var(--font-mono);font-size:12px;color:var(--fa)}
 .res-top{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:.75rem}
+.pr-tooltip{background:#facc15!important;color:#000!important;font-family:var(--font-mono);font-size:11px;font-weight:700;border:none!important;box-shadow:none!important;border-radius:6px!important;padding:3px 8px!important}
+.pr-tooltip::before{display:none!important}
 @media(max-width:640px){.two-col{grid-template-columns:1fr}.profile-hero{grid-template-columns:1fr}.nav-tab{padding:12px 14px;font-size:12px}.wrap{padding:1rem 1rem}}
 </style>
 </head>
@@ -280,7 +282,7 @@ window.addEventListener('DOMContentLoaded',async()=>{
 });
  
 function startOAuth(){
-  window.location.href='https://www.strava.com/oauth/authorize?client_id='+CLIENT_ID+'&response_type=code&redirect_uri='+encodeURIComponent(REDIRECT)+'&approval_prompt=auto&scope=activity:read_all,profile:read_all';
+  window.location.href='https://www.strava.com/oauth/authorize?client_id='+CLIENT_ID+'&response_type=code&redirect_uri='+encodeURIComponent(REDIRECT)+'&approval_prompt=auto&scope=activity:read_all,profile:read_all,activity:write';
 }
  
 async function loadApp(token,savedAth){
@@ -493,8 +495,8 @@ async function selectAct(idx){
   try{
     const [detail, photos, comments] = await Promise.all([
       apiFetch(`/activities/${a.id}?include_all_efforts=false`),
-      apiFetch(`/activities/${a.id}/photos?size=600`).catch(()=>[]),
-      apiFetch(`/activities/${a.id}/comments`).catch(()=>[]),
+      apiFetch(`/activities/${a.id}/photos?size=600&photo_sources=true`).catch(()=>[]),
+      apiFetch(`/activities/${a.id}/comments?page=1&per_page=20`).catch(()=>[]),
     ]);
  
     // Real splits from API
@@ -566,16 +568,24 @@ async function selectAct(idx){
       document.getElementById('det-splits').innerHTML='';
     }
  
-    // Photos
+    // Photos - Strava returns urls as object with size keys
     const photoEl=document.getElementById('det-photos');
     if(photos.length){
-      photoEl.innerHTML=`<div class="card-title">Fotos (${photos.length})</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px">
-        ${photos.map(p=>`<img src="${p.urls?.['600']||p.urls?.['100']||''}" alt="foto actividad" style="width:100%;height:140px;object-fit:cover;border-radius:10px;border:1px solid var(--bd)" onerror="this.style.display='none'">`).join('')}
-        </div>`;
-    } else {
-      photoEl.innerHTML='';
-    }
+      const photoImgs=photos.map(p=>{
+        // urls can be {100:'...', 600:'...'} or {url:'...'}
+        const src=p.urls?.['600']||p.urls?.['400']||p.urls?.['100']||p.urls?.url||p.source?.url||'';
+        if(!src) return '';
+        return `<img src="${src}" alt="foto actividad"
+          style="width:100%;height:160px;object-fit:cover;border-radius:10px;border:1px solid var(--bd);cursor:pointer"
+          onclick="window.open('${src}','_blank')"
+          onerror="this.parentElement.style.display='none'">`;
+      }).filter(Boolean);
+      if(photoImgs.length){
+        photoEl.innerHTML=`<div class="card-title" style="margin-bottom:.75rem">Fotos (${photoImgs.length})</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:1rem">
+          ${photoImgs.join('')}</div>`;
+      } else { photoEl.innerHTML=''; }
+    } else { photoEl.innerHTML=''; }
  
     // Comments
     const commEl=document.getElementById('det-comments');
@@ -634,11 +644,18 @@ function drawPRs(sport){
     const ranked=[...eligible].map(a=>({a,secs:d/a.average_speed})).sort((a,b)=>a.secs-b.secs).slice(0,3);
     html+=`<div class="pr-section"><div class="pr-sec-title">${l}</div><div class="pr-grid">`;
     ranked.forEach(({a,secs},i)=>{
-      html+=`<div class="pr-card"><div class="pr-trophy">${trophies[i]||''}</div>
+      const actIdx=activities.indexOf(a);
+      // segment = first d metres of the route
+      html+=`<div class="pr-card" onclick="goToActivityFromPR(${actIdx},${d})"
+        style="cursor:pointer;transition:border-color .2s,transform .15s"
+        onmouseover="this.style.borderColor='var(--or)';this.style.transform='translateY(-2px)'"
+        onmouseout="this.style.borderColor='';this.style.transform=''">
+        <div class="pr-trophy">${trophies[i]||''}</div>
         <div class="pr-dist">${i===0?'RÉCORD PERSONAL':i===1?'2º mejor':'3º mejor'}</div>
         <div class="pr-time">${fmtTimeFull(secs)}</div>
         <div class="pr-pace">${fmtPace(secs/d*1000)} min/km</div>
         <div class="pr-date">${a.name}<br>${fmtDateLong(a.start_date)}</div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--or);margin-top:6px">Ver actividad →</div>
       </div>`;
     });
     html+='</div></div>';
@@ -646,9 +663,61 @@ function drawPRs(sport){
   el.innerHTML=html||'<div class="empty">No hay suficientes actividades para calcular PRs</div>';
 }
  
+function goToActivityFromPR(actIdx, distMetres){
+  // Switch to actividades tab
+  document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+  document.querySelector('[data-p="actividades"]').classList.add('on');
+  document.getElementById('p-actividades').classList.add('on');
+  // Reset filter to all
+  filterType='all';
+  document.querySelectorAll('#act-pills .pill').forEach(p=>p.classList.remove('on'));
+  document.querySelector('#act-pills .pill').classList.add('on');
+  redrawActList();
+  // Open the activity and highlight segment
+  setTimeout(async ()=>{
+    await selectAct(actIdx);
+    // After map loads, highlight the PR segment
+    setTimeout(()=>highlightPRSegment(actIdx, distMetres), 600);
+  }, 150);
+}
+ 
+function highlightPRSegment(actIdx, distMetres){
+  const a=activities[actIdx];
+  if(!a.map?.summary_polyline||!mapDet) return;
+  const coords=decodePoly(a.map.summary_polyline);
+  if(!coords.length) return;
+ 
+  // Estimate how many coords correspond to distMetres
+  // Total distance / total coords = metres per coord point
+  const totalDist=a.distance||1;
+  const ratio=Math.min(distMetres/totalDist, 1);
+  const segEnd=Math.max(1, Math.round(coords.length*ratio));
+  const segCoords=coords.slice(0, segEnd);
+ 
+  // Remove old highlight
+  if(window._prHighlight){ mapDet.removeLayer(window._prHighlight); }
+  if(window._prDot){ mapDet.removeLayer(window._prDot); }
+ 
+  // Draw highlighted segment in bright yellow on top
+  window._prHighlight=L.polyline(segCoords,{
+    color:'#facc15', weight:6, opacity:1, dashArray:null
+  }).addTo(mapDet);
+ 
+  // Pulsing marker at segment end
+  window._prDot=L.circleMarker(segCoords[segCoords.length-1],{
+    radius:9, color:'#facc15', fillColor:'#facc15', fillOpacity:.9, weight:3
+  }).addTo(mapDet).bindTooltip(`${(distMetres/1000).toFixed(1)}km — PR`, {permanent:true, className:'pr-tooltip'});
+ 
+  // Pan map to show segment
+  mapDet.fitBounds(L.polyline(segCoords).getBounds(),{padding:[40,40]});
+}
+ 
 // ── MAP ─────────────────────────────────────────
 function drawRoute(a,map){
   map.eachLayer(l=>{if(l instanceof L.Polyline||l instanceof L.CircleMarker)map.removeLayer(l);});
+  // Clear any PR highlights
+  window._prHighlight=null; window._prDot=null;
   let coords=[];
   if(a.map?.summary_polyline) coords=decodePoly(a.map.summary_polyline);
   if(!coords.length){map.setView([40.4165,-3.7026],12);return;}
@@ -767,3 +836,4 @@ function logout(){
 </script>
 </body>
 </html>
+ 

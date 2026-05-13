@@ -587,20 +587,31 @@ async function selectAct(idx){
       } else { photoEl.innerHTML=''; }
     } else { photoEl.innerHTML=''; }
  
-    // Comments
+    // Comments + description
     const commEl=document.getElementById('det-comments');
+    let commHtml='';
+    // Show activity description (your own notes) first
+    if(detail.description){
+      commHtml+=`<div style="padding:10px 0;border-bottom:1px solid var(--bd)">
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--or);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">Descripción</div>
+        <div style="font-size:13px;color:var(--tx);line-height:1.6;white-space:pre-wrap">${detail.description}</div>
+      </div>`;
+    }
     if(comments.length){
-      commEl.innerHTML=`<div class="card-title">Comentarios (${comments.length})</div>`+
+      commHtml+=`<div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);letter-spacing:.06em;text-transform:uppercase;margin:10px 0 6px">Comentarios (${comments.length})</div>`+
         comments.map(c=>`<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)">
           <div style="width:32px;height:32px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--or)">
             ${c.athlete?.profile_medium?`<img src="${c.athlete.profile_medium}" style="width:100%;height:100%;object-fit:cover" alt="">`:(c.athlete?.firstname||'?')[0]}
           </div>
           <div>
             <div style="font-size:12px;font-weight:600">${c.athlete?.firstname||''} ${c.athlete?.lastname||''}</div>
-            <div style="font-family:var(--font-mono);font-size:12px;color:var(--mu);margin-top:2px">${c.text||''}</div>
+            <div style="font-size:13px;color:var(--mu);margin-top:2px;line-height:1.5">${c.text||''}</div>
             <div style="font-family:var(--font-mono);font-size:10px;color:var(--fa);margin-top:3px">${fmtDateLong(c.created_at)}</div>
           </div>
         </div>`).join('');
+    }
+    if(commHtml){
+      commEl.innerHTML=`<div class="card-title">Notas y comentarios</div>${commHtml}`;
     } else {
       commEl.innerHTML='';
     }
@@ -625,42 +636,115 @@ function showDetLoading(on){
 }
  
 // ══ PRs ══
+// PRs use best_efforts from the Strava activity detail API — much more accurate than avg speed
+let prCache={}; // cache best_efforts per activity id
+ 
 function renderPRs(){drawPRs(prSportType);}
 function prSport(t,el){prSportType=t;document.querySelectorAll('#pr-pills .pill').forEach(p=>p.classList.remove('on'));el.classList.add('on');drawPRs(t);}
-function drawPRs(sport){
+ 
+async function drawPRs(sport){
   const pool=activities.filter(a=>a.type===sport&&a.distance>0&&a.average_speed);
   const el=document.getElementById('pr-content');
   if(!pool.length){el.innerHTML='<div class="empty">Sin actividades de este tipo</div>';return;}
-  const dists=sport==='Run'
-    ?[{d:1000,l:'1K'},{d:5000,l:'5K'},{d:10000,l:'10K'},{d:21097,l:'Media Maratón'},{d:42195,l:'Maratón'}]
-    :sport==='Ride'
-    ?[{d:20000,l:'20K'},{d:50000,l:'50K'},{d:100000,l:'100K'},{d:160000,l:'100 millas'}]
-    :[{d:750,l:'750m'},{d:1500,l:'1.5K'},{d:3800,l:'3.8K'}];
-  const trophies=['🥇','🥈','🥉'];
-  let html='';
-  dists.forEach(({d,l})=>{
-    const eligible=pool.filter(a=>a.distance>=d*0.95);
-    if(!eligible.length)return;
-    const ranked=[...eligible].map(a=>({a,secs:d/a.average_speed})).sort((a,b)=>a.secs-b.secs).slice(0,3);
-    html+=`<div class="pr-section"><div class="pr-sec-title">${l}</div><div class="pr-grid">`;
-    ranked.forEach(({a,secs},i)=>{
-      const actIdx=activities.indexOf(a);
-      // segment = first d metres of the route
-      html+=`<div class="pr-card" onclick="goToActivityFromPR(${actIdx},${d})"
-        style="cursor:pointer;transition:border-color .2s,transform .15s"
-        onmouseover="this.style.borderColor='var(--or)';this.style.transform='translateY(-2px)'"
-        onmouseout="this.style.borderColor='';this.style.transform=''">
-        <div class="pr-trophy">${trophies[i]||''}</div>
-        <div class="pr-dist">${i===0?'RÉCORD PERSONAL':i===1?'2º mejor':'3º mejor'}</div>
-        <div class="pr-time">${fmtTimeFull(secs)}</div>
-        <div class="pr-pace">${fmtPace(secs/d*1000)} min/km</div>
-        <div class="pr-date">${a.name}<br>${fmtDateLong(a.start_date)}</div>
-        <div style="font-family:var(--font-mono);font-size:10px;color:var(--or);margin-top:6px">Ver actividad →</div>
-      </div>`;
+ 
+  el.innerHTML='<div class="empty">Cargando récords…</div>';
+ 
+  // For runs, fetch best_efforts from top 20 longest activities (covers all distances)
+  // best_efforts gives exact elapsed time for standard segments (1K, 5K, 10K, etc.)
+  if(sport==='Run'){
+    // Sort by distance desc, take top 30 to cover all PR distances
+    const toFetch=pool.sort((a,b)=>b.distance-a.distance).slice(0,30);
+    await Promise.all(toFetch.map(async a=>{
+      if(prCache[a.id]) return;
+      try{
+        const detail=await apiFetch(`/activities/${a.id}?include_all_efforts=true`);
+        prCache[a.id]=detail.best_efforts||[];
+      }catch(e){ prCache[a.id]=[]; }
+    }));
+ 
+    // Standard Strava best_effort names
+    const segments=[
+      {name:'400m',         l:'400m',        minDist:400},
+      {name:'1/2 mile',     l:'800m',        minDist:800},
+      {name:'1K',           l:'1 km',        minDist:1000},
+      {name:'1 mile',       l:'1 milla',     minDist:1609},
+      {name:'2 mile',       l:'2 millas',    minDist:3218},
+      {name:'5K',           l:'5 km',        minDist:5000},
+      {name:'10K',          l:'10 km',       minDist:10000},
+      {name:'15K',          l:'15 km',       minDist:15000},
+      {name:'10 mile',      l:'10 millas',   minDist:16090},
+      {name:'20K',          l:'20 km',       minDist:20000},
+      {name:'Half-Marathon',l:'Media Maratón',minDist:21097},
+      {name:'30K',          l:'30 km',       minDist:30000},
+      {name:'Marathon',     l:'Maratón',     minDist:42195},
+    ];
+ 
+    const trophies=['🥇','🥈','🥉'];
+    let html='';
+ 
+    segments.forEach(({name,l,minDist})=>{
+      // Collect all best_efforts matching this segment across all activities
+      const allEfforts=[];
+      pool.forEach(a=>{
+        const efforts=prCache[a.id]||[];
+        efforts.forEach(e=>{
+          if(e.name===name){
+            allEfforts.push({a, secs:e.elapsed_time, effort:e});
+          }
+        });
+      });
+      if(!allEfforts.length) return;
+      const ranked=allEfforts.sort((a,b)=>a.secs-b.secs).slice(0,3);
+      html+=`<div class="pr-section"><div class="pr-sec-title">${l}</div><div class="pr-grid">`;
+      ranked.forEach(({a,secs,effort},i)=>{
+        const actIdx=activities.indexOf(a);
+        const pace=fmtPace(secs/(minDist/1000));
+        html+=`<div class="pr-card" onclick="goToActivityFromPR(${actIdx},${minDist})"
+          style="cursor:pointer;transition:border-color .2s,transform .15s"
+          onmouseover="this.style.borderColor='var(--or)';this.style.transform='translateY(-2px)'"
+          onmouseout="this.style.borderColor='';this.style.transform=''">
+          <div class="pr-trophy">${trophies[i]||''}</div>
+          <div class="pr-dist">${i===0?'RÉCORD PERSONAL':i===1?'2º mejor':'3º mejor'}</div>
+          <div class="pr-time">${fmtTimeFull(secs)}</div>
+          <div class="pr-pace">${pace} min/km</div>
+          <div class="pr-date">${a.name}<br>${fmtDateLong(a.start_date)}</div>
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--or);margin-top:6px">Ver actividad →</div>
+        </div>`;
+      });
+      html+='</div></div>';
     });
-    html+='</div></div>';
-  });
-  el.innerHTML=html||'<div class="empty">No hay suficientes actividades para calcular PRs</div>';
+    el.innerHTML=html||'<div class="empty">No hay best_efforts registrados. Asegúrate de tener segmentos en Strava.</div>';
+ 
+  } else {
+    // For Ride/Swim use avg speed approximation (best_efforts not available)
+    const dists=sport==='Ride'
+      ?[{d:20000,l:'20K'},{d:50000,l:'50K'},{d:100000,l:'100K'},{d:160000,l:'100 millas'}]
+      :[{d:750,l:'750m'},{d:1500,l:'1.5K'},{d:3800,l:'3.8K'}];
+    const trophies=['🥇','🥈','🥉'];
+    let html='';
+    dists.forEach(({d,l})=>{
+      const eligible=pool.filter(a=>a.distance>=d*0.95);
+      if(!eligible.length)return;
+      const ranked=[...eligible].map(a=>({a,secs:d/a.average_speed})).sort((a,b)=>a.secs-b.secs).slice(0,3);
+      html+=`<div class="pr-section"><div class="pr-sec-title">${l}</div><div class="pr-grid">`;
+      ranked.forEach(({a,secs},i)=>{
+        const actIdx=activities.indexOf(a);
+        html+=`<div class="pr-card" onclick="goToActivityFromPR(${actIdx},${d})"
+          style="cursor:pointer;transition:border-color .2s,transform .15s"
+          onmouseover="this.style.borderColor='var(--or)';this.style.transform='translateY(-2px)'"
+          onmouseout="this.style.borderColor='';this.style.transform=''">
+          <div class="pr-trophy">${trophies[i]||''}</div>
+          <div class="pr-dist">${i===0?'RÉCORD PERSONAL':i===1?'2º mejor':'3º mejor'}</div>
+          <div class="pr-time">${fmtTimeFull(secs)}</div>
+          <div class="pr-pace">${fmtPace(secs/d*1000)} min/km</div>
+          <div class="pr-date">${a.name}<br>${fmtDateLong(a.start_date)}</div>
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--or);margin-top:6px">Ver actividad →</div>
+        </div>`;
+      });
+      html+='</div></div>';
+    });
+    el.innerHTML=html||'<div class="empty">Sin actividades suficientes</div>';
+  }
 }
  
 function goToActivityFromPR(actIdx, distMetres){
@@ -815,8 +899,8 @@ function mkChart(id,type,labels,datasets,extra={}){
   const c=document.getElementById(id);if(!c)return;
   const ex=Chart.getChart(c);if(ex)ex.destroy();
   const tk={ticks:{color:'#555',font:{size:10,family:'DM Mono'}},grid:{color:'rgba(255,255,255,.04)'}};
-  // Force line charts to always show points
-  const ds=datasets.map(d=>type==='line'?{...d,pointRadius:5,pointHoverRadius:7,pointBorderWidth:2,pointBackgroundColor:d.borderColor,tension:.3}:d);
+  // Force line charts to always show points, with thin lines
+  const ds=datasets.map(d=>type==='line'?{...d,borderWidth:1.5,pointRadius:3,pointHoverRadius:5,pointBorderWidth:1.5,pointBackgroundColor:d.borderColor,tension:.3}:d);
   // For pace charts add extra margin on y axis
   const yExtra=extra.paceMargin?{min:extra.min!=null?extra.min:undefined,max:extra.max!=null?extra.max:undefined}:{...(extra.min!=null?{min:extra.min}:{})};
   new Chart(c,{type,data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},

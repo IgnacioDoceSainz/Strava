@@ -172,6 +172,12 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
             <div class="profile-badges" id="pf-badges"></div>
           </div>
         </div>
+        <div class="pills" id="pf-stat-pills" style="margin-bottom:.5rem">
+          <button class="pill on" onclick="pfStatFilter('all',this)">Todo</button>
+          <button class="pill" onclick="pfStatFilter('Run',this)">🏃 Carrera</button>
+          <button class="pill" onclick="pfStatFilter('Ride',this)">🚴 Ciclismo</button>
+          <button class="pill" onclick="pfStatFilter('Swim',this)">🏊 Natación</button>
+        </div>
         <div class="sg" id="pf-stats"></div>
       </div>
       <div id="pf-race"></div>
@@ -338,6 +344,7 @@ function setupNav(){
 }
  
 // ══ PERFIL ══
+let pfStatSport='all';
 function renderPerfil(){
   const pfAv=document.getElementById('pf-av');
   if(athlete.profile_medium) pfAv.innerHTML=`<img src="${athlete.profile_medium}" alt="">`;
@@ -352,21 +359,9 @@ function renderPerfil(){
     `<span class="badge">${yrActs.length} actividades</span>`,
     `<span class="badge">${yrKm.toFixed(0)} km este año</span>`,
   ].join('');
-  const{start:ws}=weekRange(new Date());
-  const wkActs=activities.filter(a=>new Date(a.start_date)>=ws);
-  const wkKm=wkActs.reduce((s,a)=>s+a.distance/1000,0);
-  const totKm=activities.reduce((s,a)=>s+a.distance/1000,0);
-  const runs=activities.filter(a=>a.type==='Run'&&a.average_speed);
-  const avgP=runs.length?runs.reduce((s,a)=>s+1000/a.average_speed,0)/runs.length:0;
-  document.getElementById('pf-stats').innerHTML=[
-    {l:'Esta semana',v:wkKm.toFixed(1),u:'km',n:wkActs.length+' actividades'},
-    {l:'Este año',v:yrKm.toFixed(0),u:'km',n:yr+''},
-    {l:'Total histórico',v:totKm.toFixed(0),u:'km',n:'desde inicio'},
-    {l:'Ritmo medio',v:avgP?fmtPace(avgP):'—',u:'min/km',n:'carrera'},
-  ].map(s=>`<div class="st"><div class="st-l">${s.l}</div><div class="st-v">${s.v}<em>${s.u}</em></div><div class="st-n">${s.n}</div></div>`).join('');
   const valenciaDate=new Date('2026-12-06');const daysLeft=Math.ceil((valenciaDate-new Date())/86400000);
   document.getElementById('pf-race').innerHTML=`<div class="race-card"><div style="display:flex;align-items:center;justify-content:space-between;gap:1rem"><div><div class="race-label">📅 Próxima carrera</div><div class="race-name">Maratón de Valencia 2026</div><div class="race-meta">6 de diciembre 2026 · Valencia, España · 42.195 km</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:2rem;font-weight:800;color:var(--or);letter-spacing:-.04em;line-height:1">${daysLeft}</div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-top:2px">días</div></div></div></div>`;
-  // chart - default to Run
+  pfStatSport='all'; drawPfStats();
   pfSportType='Run'; drawPfChart();
   // shoes
   const shoesEl=document.getElementById('pf-shoes');
@@ -383,6 +378,34 @@ function renderPerfil(){
       <div class="shoe-km">${km}<span style="font-size:10px;color:var(--mu);margin-left:2px">km</span></div>
     </div>`;
   }).join('');
+}
+ 
+function pfStatFilter(t,el){
+  pfStatSport=t;
+  document.querySelectorAll('#pf-stat-pills .pill').forEach(p=>p.classList.remove('on'));
+  el.classList.add('on');
+  drawPfStats();
+}
+ 
+function drawPfStats(){
+  const yr=new Date().getFullYear();
+  const{start:ws}=weekRange(new Date());
+  let pool=pfStatSport==='all'?activities:activities.filter(a=>a.type===pfStatSport);
+  const wkActs=pool.filter(a=>new Date(a.start_date)>=ws);
+  const wkKm=wkActs.reduce((s,a)=>s+a.distance/1000,0);
+  const yrActs=pool.filter(a=>new Date(a.start_date).getFullYear()===yr);
+  const yrKm=yrActs.reduce((s,a)=>s+a.distance/1000,0);
+  const totKm=pool.reduce((s,a)=>s+a.distance/1000,0);
+  const totTime=pool.reduce((s,a)=>s+(a.elapsed_time||a.moving_time),0);
+  const totElev=pool.reduce((s,a)=>s+(a.total_elevation_gain||0),0);
+  document.getElementById('pf-stats').innerHTML=[
+    {l:'Esta semana', v:wkKm.toFixed(1),            u:'km',  n:wkActs.length+' actividades'},
+    {l:'Este año',    v:yrKm.toFixed(0),             u:'km',  n:yrActs.length+' actividades'},
+    {l:'Total',       v:totKm.toFixed(0),            u:'km',  n:'histórico'},
+    {l:'Tiempo total',v:fmtTime(totTime),            u:'',    n:'tiempo transcurrido'},
+    {l:'Elevación',   v:Math.round(totElev).toLocaleString(),u:'m',n:'acumulado'},
+    {l:'Actividades', v:pool.length,                 u:'',    n:'registradas'},
+  ].map(s=>`<div class="st"><div class="st-l">${s.l}</div><div class="st-v">${s.v}<em>${s.u}</em></div><div class="st-n">${s.n}</div></div>`).join('');
 }
  
 function pfSport(t,el){pfSportType=t;document.querySelectorAll('#pf-sport-pills .pill').forEach(p=>p.classList.remove('on'));el.classList.add('on');drawPfChart();}
@@ -403,19 +426,13 @@ function renderResumen(){
   let pool=resYearType==='year'?activities.filter(a=>new Date(a.start_date).getFullYear()===yr):activities;
   if(resSportType!=='all') pool=pool.filter(a=>a.type===resSportType);
   const km=pool.reduce((s,a)=>s+a.distance/1000,0);
-  const secs=pool.reduce((s,a)=>s+a.moving_time,0);
+  const secs=pool.reduce((s,a)=>s+(a.elapsed_time||a.moving_time),0);
   const elev=pool.reduce((s,a)=>s+(a.total_elevation_gain||0),0);
-  const hrA=pool.filter(a=>a.average_heartrate);
-  const avgHR=hrA.length?hrA.reduce((s,a)=>s+a.average_heartrate,0)/hrA.length:0;
-  const runs=pool.filter(a=>a.type==='Run'&&a.average_speed>0);
-  const pace=runs.length?runs.reduce((s,a)=>s+(1000/a.average_speed),0)/runs.length:0;
   document.getElementById('res-stats').innerHTML=[
-    {l:'Kilómetros',v:km.toFixed(1),u:'km',n:pool.length+' actividades'},
-    {l:'Tiempo activo',v:fmtTime(secs),u:'',n:'en movimiento'},
-    {l:'Elevación',v:Math.round(elev).toLocaleString(),u:'m',n:'acumulado'},
-    {l:'FC promedio',v:avgHR?Math.round(avgHR):'—',u:'bpm',n:'zona aeróbica'},
-    {l:'Ritmo medio',v:pace?fmtPace(pace):'—',u:'min/km',n:'carrera'},
-    {l:'Actividades',v:pool.length,u:'',n:resYearType==='year'?yr+'':'histórico'},
+    {l:'Kilómetros',   v:km.toFixed(1),                          u:'km', n:pool.length+' actividades'},
+    {l:'Tiempo total', v:fmtTime(secs),                          u:'',   n:'tiempo transcurrido'},
+    {l:'Elevación',    v:Math.round(elev).toLocaleString(),      u:'m',  n:'acumulado'},
+    {l:'Actividades',  v:pool.length,                            u:'',   n:resYearType==='year'?yr+'':'histórico'},
   ].map(s=>`<div class="st"><div class="st-l">${s.l}</div><div class="st-v">${s.v}<em>${s.u}</em></div><div class="st-n">${s.n}</div></div>`).join('');
   const w10=last10Weeks();const lbs=w10.map(w=>w.label);
   mkChart('res-km','line',lbs,[{label:'km',data:w10.map(w=>+pool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+a.distance/1000,0).toFixed(1)),borderColor:'#FC4C02',backgroundColor:'rgba(252,76,2,.15)',fill:true,spanGaps:true}]);
@@ -649,11 +666,9 @@ async function drawPRs(sport){
  
   el.innerHTML='<div class="empty">Cargando récords…</div>';
  
-  // For runs, fetch best_efforts from top 20 longest activities (covers all distances)
-  // best_efforts gives exact elapsed time for standard segments (1K, 5K, 10K, etc.)
   if(sport==='Run'){
-    // Sort by distance desc, take top 30 to cover all PR distances
-    const toFetch=pool.sort((a,b)=>b.distance-a.distance).slice(0,30);
+    // Fetch best_efforts for top 30 longest runs
+    const toFetch=[...pool].sort((a,b)=>b.distance-a.distance).slice(0,30);
     await Promise.all(toFetch.map(async a=>{
       if(prCache[a.id]) return;
       try{
@@ -662,88 +677,96 @@ async function drawPRs(sport){
       }catch(e){ prCache[a.id]=[]; }
     }));
  
-    // Standard Strava best_effort names
+    // Strava best_effort segment names → display labels
     const segments=[
-      {name:'400m',         l:'400m',        minDist:400},
-      {name:'1/2 mile',     l:'800m',        minDist:800},
-      {name:'1K',           l:'1 km',        minDist:1000},
-      {name:'1 mile',       l:'1 milla',     minDist:1609},
-      {name:'2 mile',       l:'2 millas',    minDist:3218},
-      {name:'5K',           l:'5 km',        minDist:5000},
-      {name:'10K',          l:'10 km',       minDist:10000},
-      {name:'15K',          l:'15 km',       minDist:15000},
-      {name:'10 mile',      l:'10 millas',   minDist:16090},
-      {name:'20K',          l:'20 km',       minDist:20000},
-      {name:'Half-Marathon',l:'Media Maratón',minDist:21097},
-      {name:'30K',          l:'30 km',       minDist:30000},
-      {name:'Marathon',     l:'Maratón',     minDist:42195},
+      {name:'400m',          l:'400m',         d:400},
+      {name:'1/2 mile',      l:'800m',         d:800},
+      {name:'1K',            l:'1 km',         d:1000},
+      {name:'1 mile',        l:'1 milla',      d:1609},
+      {name:'5K',            l:'5 km',         d:5000},
+      {name:'10K',           l:'10 km',        d:10000},
+      {name:'15K',           l:'15 km',        d:15000},
+      {name:'Half-Marathon', l:'Media Maratón', d:21097},
+      {name:'30K',           l:'30 km',        d:30000},
+      {name:'Marathon',      l:'Maratón',      d:42195},
     ];
  
-    const trophies=['🥇','🥈','🥉'];
-    let html='';
- 
-    segments.forEach(({name,l,minDist})=>{
-      // Collect all best_efforts matching this segment across all activities
-      const allEfforts=[];
-      pool.forEach(a=>{
-        const efforts=prCache[a.id]||[];
-        efforts.forEach(e=>{
-          if(e.name===name){
-            allEfforts.push({a, secs:e.elapsed_time, effort:e});
-          }
-        });
+    // Build map: segmentName → sorted efforts
+    const effortMap={};
+    pool.forEach(a=>{
+      (prCache[a.id]||[]).forEach(e=>{
+        if(!effortMap[e.name]) effortMap[e.name]=[];
+        effortMap[e.name].push({a,secs:e.elapsed_time,effort:e});
       });
-      if(!allEfforts.length) return;
-      const ranked=allEfforts.sort((a,b)=>a.secs-b.secs).slice(0,3);
-      html+=`<div class="pr-section"><div class="pr-sec-title">${l}</div><div class="pr-grid">`;
-      ranked.forEach(({a,secs,effort},i)=>{
-        const actIdx=activities.indexOf(a);
-        const pace=fmtPace(secs/(minDist/1000));
-        html+=`<div class="pr-card" onclick="goToActivityFromPR(${actIdx},${minDist})"
+    });
+    Object.keys(effortMap).forEach(k=>effortMap[k].sort((a,b)=>a.secs-b.secs));
+ 
+    // Compact grid: one card per distance showing PR + 2nd + 3rd in collapsed rows
+    const found=segments.filter(s=>effortMap[s.name]?.length);
+    if(!found.length){el.innerHTML='<div class="empty">No hay best efforts. Asegúrate de que tus actividades tienen segmentos en Strava.</div>';return;}
+ 
+    el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:1rem">
+      ${found.map(s=>{
+        const efforts=effortMap[s.name];
+        const best=efforts[0];
+        const actIdx=activities.indexOf(best.a);
+        const pace=fmtPace(best.secs/(s.d/1000));
+        const others=efforts.slice(1,3).map((e,i)=>`
+          <div style="display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid var(--bd);opacity:.7;font-size:11px;font-family:var(--font-mono)">
+            <span style="color:var(--mu)">${['🥈','🥉'][i]} ${fmtTimeFull(e.secs)}</span>
+            <span style="color:var(--fa)">${fmtDate(e.a.start_date)}</span>
+          </div>`).join('');
+        return `<div class="pr-card" onclick="goToActivityFromPR(${actIdx},${s.d})"
           style="cursor:pointer;transition:border-color .2s,transform .15s"
           onmouseover="this.style.borderColor='var(--or)';this.style.transform='translateY(-2px)'"
           onmouseout="this.style.borderColor='';this.style.transform=''">
-          <div class="pr-trophy">${trophies[i]||''}</div>
-          <div class="pr-dist">${i===0?'RÉCORD PERSONAL':i===1?'2º mejor':'3º mejor'}</div>
-          <div class="pr-time">${fmtTimeFull(secs)}</div>
-          <div class="pr-pace">${pace} min/km</div>
-          <div class="pr-date">${a.name}<br>${fmtDateLong(a.start_date)}</div>
-          <div style="font-family:var(--font-mono);font-size:10px;color:var(--or);margin-top:6px">Ver actividad →</div>
+          <div style="display:flex;align-items:start;justify-content:space-between;margin-bottom:8px">
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--mu);letter-spacing:.05em;text-transform:uppercase">${s.l}</div>
+            <div style="font-size:16px">🥇</div>
+          </div>
+          <div style="font-size:1.6rem;font-weight:800;letter-spacing:-.03em;line-height:1">${fmtTimeFull(best.secs)}</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--or);margin-top:4px">${pace} min/km</div>
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--fa);margin-top:4px;margin-bottom:${others?'8px':'0'}">${best.a.name} · ${fmtDate(best.a.start_date)}</div>
+          ${others}
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--or);margin-top:8px">Ver actividad →</div>
         </div>`;
-      });
-      html+='</div></div>';
-    });
-    el.innerHTML=html||'<div class="empty">No hay best_efforts registrados. Asegúrate de tener segmentos en Strava.</div>';
+      }).join('')}
+    </div>`;
  
   } else {
-    // For Ride/Swim use avg speed approximation (best_efforts not available)
+    // Ride/Swim: use avg speed approximation
     const dists=sport==='Ride'
       ?[{d:20000,l:'20K'},{d:50000,l:'50K'},{d:100000,l:'100K'},{d:160000,l:'100 millas'}]
       :[{d:750,l:'750m'},{d:1500,l:'1.5K'},{d:3800,l:'3.8K'}];
-    const trophies=['🥇','🥈','🥉'];
-    let html='';
-    dists.forEach(({d,l})=>{
-      const eligible=pool.filter(a=>a.distance>=d*0.95);
-      if(!eligible.length)return;
-      const ranked=[...eligible].map(a=>({a,secs:d/a.average_speed})).sort((a,b)=>a.secs-b.secs).slice(0,3);
-      html+=`<div class="pr-section"><div class="pr-sec-title">${l}</div><div class="pr-grid">`;
-      ranked.forEach(({a,secs},i)=>{
-        const actIdx=activities.indexOf(a);
-        html+=`<div class="pr-card" onclick="goToActivityFromPR(${actIdx},${d})"
+    const found=dists.filter(({d})=>pool.some(a=>a.distance>=d*0.95));
+    if(!found.length){el.innerHTML='<div class="empty">Sin actividades suficientes</div>';return;}
+    el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
+      ${found.map(({d,l})=>{
+        const ranked=[...pool].filter(a=>a.distance>=d*0.95).map(a=>({a,secs:d/a.average_speed})).sort((a,b)=>a.secs-b.secs);
+        const best=ranked[0];
+        const actIdx=activities.indexOf(best.a);
+        const pace=fmtPace(best.secs/(d/1000));
+        const others=ranked.slice(1,3).map((e,i)=>`
+          <div style="display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid var(--bd);opacity:.7;font-size:11px;font-family:var(--font-mono)">
+            <span style="color:var(--mu)">${['🥈','🥉'][i]} ${fmtTimeFull(e.secs)}</span>
+            <span style="color:var(--fa)">${fmtDate(e.a.start_date)}</span>
+          </div>`).join('');
+        return `<div class="pr-card" onclick="goToActivityFromPR(${actIdx},${d})"
           style="cursor:pointer;transition:border-color .2s,transform .15s"
           onmouseover="this.style.borderColor='var(--or)';this.style.transform='translateY(-2px)'"
           onmouseout="this.style.borderColor='';this.style.transform=''">
-          <div class="pr-trophy">${trophies[i]||''}</div>
-          <div class="pr-dist">${i===0?'RÉCORD PERSONAL':i===1?'2º mejor':'3º mejor'}</div>
-          <div class="pr-time">${fmtTimeFull(secs)}</div>
-          <div class="pr-pace">${fmtPace(secs/d*1000)} min/km</div>
-          <div class="pr-date">${a.name}<br>${fmtDateLong(a.start_date)}</div>
-          <div style="font-family:var(--font-mono);font-size:10px;color:var(--or);margin-top:6px">Ver actividad →</div>
+          <div style="display:flex;align-items:start;justify-content:space-between;margin-bottom:8px">
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--mu);letter-spacing:.05em;text-transform:uppercase">${l}</div>
+            <div style="font-size:16px">🥇</div>
+          </div>
+          <div style="font-size:1.6rem;font-weight:800;letter-spacing:-.03em;line-height:1">${fmtTimeFull(best.secs)}</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--or);margin-top:4px">${pace} min/km</div>
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--fa);margin-top:4px;margin-bottom:${others?'8px':'0'}">${best.a.name} · ${fmtDate(best.a.start_date)}</div>
+          ${others}
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--or);margin-top:8px">Ver actividad →</div>
         </div>`;
-      });
-      html+='</div></div>';
-    });
-    el.innerHTML=html||'<div class="empty">Sin actividades suficientes</div>';
+      }).join('')}
+    </div>`;
   }
 }
  
@@ -901,10 +924,11 @@ function mkChart(id,type,labels,datasets,extra={}){
   const tk={ticks:{color:'#555',font:{size:10,family:'DM Mono'}},grid:{color:'rgba(255,255,255,.04)'}};
   // Force line charts to always show points, with thin lines
   const ds=datasets.map(d=>type==='line'?{...d,borderWidth:1.5,pointRadius:3,pointHoverRadius:5,pointBorderWidth:1.5,pointBackgroundColor:d.borderColor,tension:.3}:d);
-  // For pace charts add extra margin on y axis
-  const yExtra=extra.paceMargin?{min:extra.min!=null?extra.min:undefined,max:extra.max!=null?extra.max:undefined}:{...(extra.min!=null?{min:extra.min}:{})};
+  // min:0 by default unless paceMargin or explicit min set
+  const yMin=extra.paceMargin?extra.min:(extra.min!=null?extra.min:0);
+  const yExtra=yMin!=null?{min:yMin}:{};
   new Chart(c,{type,data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-    scales:{x:tk,y:{...tk,...yExtra,...(extra.cbY?{ticks:{...tk.ticks,callback:extra.cbY}}:{})}}}});
+    scales:{x:tk,y:{...tk,...yExtra,...(extra.max!=null?{max:extra.max}:{}),...(extra.cbY?{ticks:{...tk.ticks,callback:extra.cbY}}:{})}}}});
 }
 function showLoading(m){document.getElementById('loading-msg').textContent=m||'Cargando…';document.getElementById('loading').style.display='flex';}
 function hideLoading(){document.getElementById('loading').style.display='none';}

@@ -76,7 +76,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 .shoe-name{font-size:13px;font-weight:600}
 .shoe-brand{font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-top:1px}
 .shoe-km{font-family:var(--font-mono);font-size:13px;font-weight:500;color:var(--or)}
-.shoe-bar-bg{height:3px;background:var(--s3);border-radius:2px;margin-top:5px;overflow:hidden;width:120px}
+.shoe-bar-bg{height:3px;background:var(--s3);border-radius:2px;margin-top:5px;overflow:hidden;width:100%;max-width:160px}
 .shoe-bar-fill{height:100%;background:var(--or);border-radius:2px}
 .race-card{background:linear-gradient(135deg,rgba(252,76,2,.1),rgba(252,76,2,.03));border:1px solid var(--or3);border-radius:14px;padding:1.25rem 1.5rem;margin-bottom:1rem}
 .race-label{font-family:var(--font-mono);font-size:10px;color:var(--or);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
@@ -429,18 +429,21 @@ function renderPerfil(){
   shoesEl.innerHTML=shoes.map(s=>{
     const km=((s.distance||0)/1000).toFixed(0);
     const isRetired=retired.includes(s.id);
-    return `<div class="shoe-row" id="shoe-${s.id}" style="${isRetired?'opacity:.45':''}">
-      <div class="shoe-l"><span style="font-size:20px">${isRetired?'📦':'👟'}</span>
-      <div>
-        <div style="display:flex;align-items:center;gap:4px">
-          <div class="shoe-name">${s.name||s.id||'Zapatilla'}</div>
-          ${isRetired?`<span style="font-family:var(--font-mono);font-size:9px;color:var(--red);border:1px solid var(--red);padding:1px 5px;border-radius:10px">RETIRADA</span>`:''}
+    const retiredStyle=isRetired?'background:rgba(239,68,68,.04);border:1px solid rgba(239,68,68,.15);border-radius:10px;padding:8px 6px;':'padding:8px 6px;border:1px solid transparent;border-radius:10px;';
+    return `<div class="shoe-row" id="shoe-${s.id}" style="${retiredStyle}">
+      <div class="shoe-l" style="flex:1;min-width:0">
+        <span style="font-size:20px;filter:${isRetired?'grayscale(1)':'none'};flex-shrink:0">${isRetired?'📦':'👟'}</span>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <div class="shoe-name" style="color:${isRetired?'var(--mu)':'var(--tx)'}">${s.name||s.id||'Zapatilla'}</div>
+            ${isRetired?'<span style="font-family:var(--font-mono);font-size:9px;color:var(--red);border:1px solid rgba(239,68,68,.4);padding:1px 6px;border-radius:10px;background:rgba(239,68,68,.08);white-space:nowrap">RETIRADA</span>':''}
+          </div>
+          <div class="shoe-brand" style="color:${isRetired?'var(--fa)':'var(--mu)'}">${s.brand_name||''} ${s.model_name||''}</div>
+          <div class="shoe-bar-bg" style="max-width:none;width:100%"><div class="shoe-bar-fill" style="width:${isRetired?100:Math.round(km/maxKm*100)}%;background:${isRetired?'rgba(255,255,255,.12)':'var(--or)'}"></div></div>
         </div>
-        <div class="shoe-brand">${s.brand_name||''} ${s.model_name||''}</div>
-        <div class="shoe-bar-bg"><div class="shoe-bar-fill" style="width:${isRetired?100:Math.round(km/maxKm*100)}%;background:${isRetired?'var(--fa)':'var(--or)'}"></div></div>
-      </div></div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <div class="shoe-km">${km}<span style="font-size:10px;color:var(--mu);margin-left:2px">km</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:12px">
+        <div class="shoe-km" style="color:${isRetired?'var(--mu)':'var(--or)'}">${km}<span style="font-size:10px;color:var(--fa);margin-left:2px">km</span></div>
         <button class="btn-retire ${isRetired?'retired':''}" onclick="toggleRetire('${s.id}',this)">
           ${isRetired?'Reactivar':'Retirar'}
         </button>
@@ -1048,18 +1051,21 @@ function toggleRetire(id,btn){
   shoesEl.innerHTML=shoes.map(s=>{
     const km=((s.distance||0)/1000).toFixed(0);
     const isRetired=newRetired.includes(s.id);
-    return `<div class="shoe-row" id="shoe-${s.id}" style="${isRetired?'opacity:.45':''}">
-      <div class="shoe-l"><span style="font-size:20px">${isRetired?'📦':'👟'}</span>
-      <div>
-        <div style="display:flex;align-items:center;gap:4px">
-          <div class="shoe-name">${s.name||s.id||'Zapatilla'}</div>
-          ${isRetired?`<span style="font-family:var(--font-mono);font-size:9px;color:var(--red);border:1px solid var(--red);padding:1px 5px;border-radius:10px">RETIRADA</span>`:''}
+    const retiredStyle=isRetired?'background:rgba(239,68,68,.04);border:1px solid rgba(239,68,68,.15);border-radius:10px;padding:8px 6px;':'padding:8px 6px;border:1px solid transparent;border-radius:10px;';
+    return `<div class="shoe-row" id="shoe-${s.id}" style="${retiredStyle}">
+      <div class="shoe-l" style="flex:1;min-width:0">
+        <span style="font-size:20px;filter:${isRetired?'grayscale(1)':'none'};flex-shrink:0">${isRetired?'📦':'👟'}</span>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <div class="shoe-name" style="color:${isRetired?'var(--mu)':'var(--tx)'}">${s.name||s.id||'Zapatilla'}</div>
+            ${isRetired?'<span style="font-family:var(--font-mono);font-size:9px;color:var(--red);border:1px solid rgba(239,68,68,.4);padding:1px 6px;border-radius:10px;background:rgba(239,68,68,.08);white-space:nowrap">RETIRADA</span>':''}
+          </div>
+          <div class="shoe-brand" style="color:${isRetired?'var(--fa)':'var(--mu)'}">${s.brand_name||''} ${s.model_name||''}</div>
+          <div class="shoe-bar-bg" style="max-width:none;width:100%"><div class="shoe-bar-fill" style="width:${isRetired?100:Math.round(km/maxKm*100)}%;background:${isRetired?'rgba(255,255,255,.12)':'var(--or)'}"></div></div>
         </div>
-        <div class="shoe-brand">${s.brand_name||''} ${s.model_name||''}</div>
-        <div class="shoe-bar-bg"><div class="shoe-bar-fill" style="width:${isRetired?100:Math.round(km/maxKm*100)}%;background:${isRetired?'var(--fa)':'var(--or)'}"></div></div>
-      </div></div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <div class="shoe-km">${km}<span style="font-size:10px;color:var(--mu);margin-left:2px">km</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:12px">
+        <div class="shoe-km" style="color:${isRetired?'var(--mu)':'var(--or)'}">${km}<span style="font-size:10px;color:var(--fa);margin-left:2px">km</span></div>
         <button class="btn-retire ${isRetired?'retired':''}" onclick="toggleRetire('${s.id}',this)">
           ${isRetired?'Reactivar':'Retirar'}
         </button>

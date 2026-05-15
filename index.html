@@ -437,7 +437,7 @@ function renderPerfil(){
           ${isRetired?`<span style="font-family:var(--font-mono);font-size:9px;color:var(--red);border:1px solid var(--red);padding:1px 5px;border-radius:10px">RETIRADA</span>`:''}
         </div>
         <div class="shoe-brand">${s.brand_name||''} ${s.model_name||''}</div>
-        <div class="shoe-bar-bg"><div class="shoe-bar-fill" style="width:${Math.round(km/maxKm*100)}%;background:${isRetired?'var(--fa)':'var(--or)'}"></div></div>
+        <div class="shoe-bar-bg"><div class="shoe-bar-fill" style="width:${isRetired?100:Math.round(km/maxKm*100)}%;background:${isRetired?'var(--fa)':'var(--or)'}"></div></div>
       </div></div>
       <div style="display:flex;align-items:center;gap:8px">
         <div class="shoe-km">${km}<span style="font-size:10px;color:var(--mu);margin-left:2px">km</span></div>
@@ -465,15 +465,11 @@ function drawPfStats(){
   const yrActs=pool.filter(a=>new Date(a.start_date).getFullYear()===yr);
   const yrKm=yrActs.reduce((s,a)=>s+a.distance/1000,0);
   const totKm=pool.reduce((s,a)=>s+a.distance/1000,0);
-  const totTime=pool.reduce((s,a)=>s+(a.elapsed_time||a.moving_time),0);
-  const totElev=pool.reduce((s,a)=>s+(a.total_elevation_gain||0),0);
   document.getElementById('pf-stats').innerHTML=[
-    {l:'Esta semana', v:wkKm.toFixed(1),            u:'km',  n:wkActs.length+' actividades'},
-    {l:'Este año',    v:yrKm.toFixed(0),             u:'km',  n:yrActs.length+' actividades'},
-    {l:'Total',       v:totKm.toFixed(0),            u:'km',  n:'histórico'},
-    {l:'Tiempo total',v:fmtTime(totTime),            u:'',    n:'tiempo transcurrido'},
-    {l:'Elevación',   v:Math.round(totElev).toLocaleString(),u:'m',n:'acumulado'},
-    {l:'Actividades', v:pool.length,                 u:'',    n:'registradas'},
+    {l:'Esta semana', v:wkKm.toFixed(1),   u:'km', n:wkActs.length+' actividades'},
+    {l:'Este año',    v:yrKm.toFixed(0),   u:'km', n:yrActs.length+' actividades'},
+    {l:'Total',       v:totKm.toFixed(0),  u:'km', n:pool.length+' actividades'},
+    {l:'Actividades', v:pool.length,        u:'',   n:'registradas'},
   ].map(s=>`<div class="st"><div class="st-l">${s.l}</div><div class="st-v">${s.v}<em>${s.u}</em></div><div class="st-n">${s.n}</div></div>`).join('');
 }
  
@@ -591,7 +587,11 @@ async function selectAct(idx){
     // Real splits from API
     const splits=detail.splits_metric||[];
     if(splits.length){
-      const paceData=splits.map(s=>s.moving_time>0?Math.round(1000/(s.distance/s.moving_time)):0).filter(v=>v>0&&v<900);
+      const paceData=splits.map(s=>{
+        if(!s.moving_time||s.moving_time<=0||!s.distance||s.distance<10) return null;
+        const secsPerKm=Math.round(1000/(s.distance/s.moving_time));
+        return (secsPerKm>0&&secsPerKm<900)?secsPerKm:null;
+      }).filter(v=>v!==null);
       const labels=splits.map((_,i)=>'km '+(i+1));
       const paceMin=Math.min(...paceData)-15, paceMax=Math.max(...paceData)+15;
       mkChart('det-pace','line',labels,[{
@@ -631,7 +631,7 @@ async function selectAct(idx){
     // Splits table
     if(splits.length){
       const splitRows=splits.map((s,i)=>{
-        const pace=s.moving_time>0?Math.round(1000/(s.distance/s.moving_time)):0;
+        const pace=(s.moving_time>0&&s.distance>=10)?Math.round(1000/(s.distance/s.moving_time)):0;
         const paceStr=pace?fmtPace(pace):'—';
         const elev=s.elevation_difference!=null?`${s.elevation_difference>0?'+':''}${Math.round(s.elevation_difference)}m`:'—';
         return `<tr>
@@ -970,10 +970,9 @@ function weekRange(d){const day=d.getDay()||7,start=new Date(d);start.setDate(d.
 function last10Weeks(){const w=[];for(let i=9;i>=0;i--){const ref=new Date();ref.setDate(ref.getDate()-i*7);const{start,end}=weekRange(ref);w.push({start,end,label:start.toLocaleDateString('es-ES',{day:'numeric',month:'short'})});}return w;}
 function last8Weeks(){return last10Weeks();}
 function genSplits(a){
-  // returns array of secs/km per split, with small realistic variance
   const n=Math.max(1,Math.round(a.distance/1000));
-  const baseSecs=a.average_speed>0?(1000/a.average_speed):300;
-  return Array.from({length:n},()=>Math.round(baseSecs+((Math.random()-.5)*20)));
+  const baseSecs=(a.average_speed&&a.average_speed>0)?(1000/a.average_speed):300;
+  return Array.from({length:n},()=>Math.round(Math.max(60,baseSecs+((Math.random()-.5)*20))));
 }
 function genHRSplits(a,n){const count=n||Math.max(1,Math.round(a.distance/1000)),base=a.average_heartrate||150;return Array.from({length:count},(_,i)=>Math.round(base*(0.95+i/count*.08)+((Math.random()-.5)*6)));}
 function actRowHtml(a,idx){
@@ -1057,7 +1056,7 @@ function toggleRetire(id,btn){
           ${isRetired?`<span style="font-family:var(--font-mono);font-size:9px;color:var(--red);border:1px solid var(--red);padding:1px 5px;border-radius:10px">RETIRADA</span>`:''}
         </div>
         <div class="shoe-brand">${s.brand_name||''} ${s.model_name||''}</div>
-        <div class="shoe-bar-bg"><div class="shoe-bar-fill" style="width:${Math.round(km/maxKm*100)}%;background:${isRetired?'var(--fa)':'var(--or)'}"></div></div>
+        <div class="shoe-bar-bg"><div class="shoe-bar-fill" style="width:${isRetired?100:Math.round(km/maxKm*100)}%;background:${isRetired?'var(--fa)':'var(--or)'}"></div></div>
       </div></div>
       <div style="display:flex;align-items:center;gap:8px">
         <div class="shoe-km">${km}<span style="font-size:10px;color:var(--mu);margin-left:2px">km</span></div>

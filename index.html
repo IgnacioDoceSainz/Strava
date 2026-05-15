@@ -1,6 +1,3 @@
-Index v10b · HTML
-Copiar
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -140,7 +137,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 </head>
 <body>
  
-<div id="loading"><div class="spin"></div><p id="loading-msg">Conectando…</p></div>
+<div id="loading"><div class="spin"></div><p id="loading-msg">Conectando…</p><button onclick="hardReset()" style="margin-top:1.5rem;font-family:var(--font-mono);font-size:11px;color:var(--fa);background:transparent;border:1px solid var(--fa);border-radius:6px;padding:5px 14px;cursor:pointer;display:none" id="reset-btn">Reiniciar sesión</button></div>
  
 <div id="screen-auth">
   <div class="auth-wrap">
@@ -310,6 +307,12 @@ let filterType='all',resSportType='all',resYearType='year',prSportType='Run',pfS
 let mapDet=null;
  
 window.addEventListener('DOMContentLoaded',async()=>{
+  // Show reset button after 5s if still loading
+  const resetTimer=setTimeout(()=>{
+    const btn=document.getElementById('reset-btn');
+    if(btn) btn.style.display='block';
+  }, 5000);
+ 
   const params=new URLSearchParams(window.location.search);
   const code=params.get('code');
   if(code){
@@ -321,12 +324,27 @@ window.addEventListener('DOMContentLoaded',async()=>{
       if(!data.access_token) throw new Error(data.message||'Error');
       localStorage.setItem('strava_token',data.access_token);
       localStorage.setItem('strava_athlete',JSON.stringify(data.athlete||{}));
+      clearTimeout(resetTimer);
       await loadApp(data.access_token,data.athlete);
-    }catch(e){hideLoading();showAuth();alert('Error: '+e.message);}
+    }catch(e){
+      clearTimeout(resetTimer);
+      hardReset();
+      alert('Error obteniendo token: '+e.message);
+    }
     return;
   }
   const tok=localStorage.getItem('strava_token');
-  if(tok){await loadApp(tok,JSON.parse(localStorage.getItem('strava_athlete')||'{}'));return;}
+  if(tok){
+    try{
+      await loadApp(tok,JSON.parse(localStorage.getItem('strava_athlete')||'{}'));
+      clearTimeout(resetTimer);
+    }catch(e){
+      clearTimeout(resetTimer);
+      hardReset();
+    }
+    return;
+  }
+  clearTimeout(resetTimer);
   hideLoading();showAuth();
 });
  
@@ -337,23 +355,19 @@ function startOAuth(){
 async function loadApp(token,savedAth){
   showLoading('Cargando actividades…');
   try{
-    // Always fetch fresh athlete to get up-to-date shoes/gear
     const [ath,acts]=await Promise.all([
       apiFetch('/athlete',token),
       apiFetch('/athlete/activities?per_page=100&page=1',token)
     ]);
     athlete=ath; activities=acts;
-    // Load full gear details for each shoe
     if(ath.shoes?.length){
       gear=await Promise.all(ath.shoes.map(s=>apiFetch('/gear/'+s.id,token).catch(()=>s)));
-    } else {
-      gear=[];
-    }
+    } else { gear=[]; }
     localStorage.setItem('strava_athlete',JSON.stringify(ath));
     hideLoading(); showApp();
   }catch(e){
-    hideLoading(); localStorage.removeItem('strava_token'); showAuth();
-    alert('Sesión expirada. Vuelve a conectar.');
+    console.error('loadApp error:',e);
+    hardReset();
   }
 }
  
@@ -1054,7 +1068,23 @@ function toggleRetire(id,btn){
     </div>`;
   }).join('');
 }
-function showAuth(){document.getElementById('screen-auth').style.display='flex';}
+function hardReset(){
+  try{localStorage.removeItem('strava_token');localStorage.removeItem('strava_athlete');}catch(e){}
+  activities=[];athlete={};gear=[];
+  document.getElementById('loading').style.display='none';
+  document.getElementById('screen-app').style.display='none';
+  document.getElementById('screen-auth').style.display='flex';
+}
+function showLoading(m){
+  document.getElementById('loading-msg').textContent=m||'Cargando…';
+  document.getElementById('loading').style.display='flex';
+  const rb=document.getElementById('reset-btn');if(rb)rb.style.display='none';
+}
+function hideLoading(){document.getElementById('loading').style.display='none';}
+function showAuth(){
+  document.getElementById('loading').style.display='none';
+  document.getElementById('screen-auth').style.display='flex';
+}
 function logout(){
   localStorage.removeItem('strava_token');localStorage.removeItem('strava_athlete');
   activities=[];athlete={};gear=[];

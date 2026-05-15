@@ -1,3 +1,6 @@
+Index v10b · HTML
+Copiar
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -121,6 +124,17 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 .res-top{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:.75rem}
 .pr-tooltip{background:#facc15!important;color:#000!important;font-family:var(--font-mono);font-size:11px;font-weight:700;border:none!important;box-shadow:none!important;border-radius:6px!important;padding:3px 8px!important}
 .pr-tooltip::before{display:none!important}
+@media(max-width:700px){[style*="grid-template-columns:repeat(4"]{grid-template-columns:repeat(2,1fr)!important}}
+/* Race modal */
+#race-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:500;display:none;align-items:center;justify-content:center;padding:1rem}
+#race-modal.open{display:flex}
+.race-modal-box{background:var(--s1);border:1px solid var(--bd2);border-radius:16px;width:100%;max-width:620px;max-height:90vh;overflow-y:auto}
+.race-modal-hdr{padding:1.25rem 1.5rem;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between}
+.race-modal-body{padding:1.5rem}
+.race-map{height:260px;border-radius:10px;overflow:hidden;border:1px solid var(--bd);margin-bottom:1rem}
+.btn-retire{font-family:var(--font-mono);font-size:10px;padding:3px 10px;border-radius:20px;border:1px solid var(--bd);color:var(--mu);background:transparent;cursor:pointer;transition:all .2s;margin-left:8px}
+.btn-retire:hover{border-color:var(--red);color:var(--red)}
+.btn-retire.retired{border-color:var(--red);color:var(--red);background:rgba(239,68,68,.1)}
 @media(max-width:640px){.two-col{grid-template-columns:1fr}.profile-hero{grid-template-columns:1fr}.nav-tab{padding:12px 14px;font-size:12px}.wrap{padding:1rem 1rem}}
 </style>
 </head>
@@ -259,6 +273,35 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
   </main>
 </div>
  
+<!-- RACE MODAL -->
+<div id="race-modal" onclick="if(event.target===this)closeRaceModal()">
+  <div class="race-modal-box">
+    <div class="race-modal-hdr">
+      <div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--or);letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px">📅 Próxima carrera</div>
+        <div style="font-size:1.1rem;font-weight:700">Maratón de Valencia 2026</div>
+      </div>
+      <button onclick="closeRaceModal()" style="background:transparent;border:none;color:var(--mu);font-size:20px;cursor:pointer;padding:4px">✕</button>
+    </div>
+    <div class="race-modal-body">
+      <div class="sg" style="margin-bottom:1rem">
+        <div class="st"><div class="st-l">Fecha</div><div class="st-v" style="font-size:14px">6 dic 2026</div></div>
+        <div class="st"><div class="st-l">Ciudad</div><div class="st-v" style="font-size:14px">Valencia</div></div>
+        <div class="st"><div class="st-l">Distancia</div><div class="st-v">42.2<em>km</em></div></div>
+        <div class="st"><div class="st-l">Días restantes</div><div class="st-v" id="modal-days" style="color:var(--or)">—</div></div>
+      </div>
+      <div class="race-map" id="race-modal-map"></div>
+      <div style="font-family:var(--font-mono);font-size:11px;color:var(--mu);line-height:1.8">
+        <div>🏟 <strong style="color:var(--tx)">Salida:</strong> Av. de les Corts Valencianes, Valencia</div>
+        <div>🏁 <strong style="color:var(--tx)">Meta:</strong> Ciudad de las Artes y las Ciencias</div>
+        <div>📏 <strong style="color:var(--tx)">Perfil:</strong> Llano · Rápido · Récord del mundo</div>
+        <div>🌡 <strong style="color:var(--tx)">Clima:</strong> ~15°C en diciembre · Ideal para correr</div>
+        <div>🔗 <strong style="color:var(--tx)">Web:</strong> <a href="https://www.valenciaciudaddelrunning.com" target="_blank" style="color:var(--or)">valenciaciudaddelrunning.com</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+ 
 <script>
 const CLIENT_ID='237317';
 const REDIRECT=window.location.origin+window.location.pathname.replace(/\/$/,'');
@@ -360,22 +403,34 @@ function renderPerfil(){
     `<span class="badge">${yrKm.toFixed(0)} km este año</span>`,
   ].join('');
   const valenciaDate=new Date('2026-12-06');const daysLeft=Math.ceil((valenciaDate-new Date())/86400000);
-  document.getElementById('pf-race').innerHTML=`<div class="race-card"><div style="display:flex;align-items:center;justify-content:space-between;gap:1rem"><div><div class="race-label">📅 Próxima carrera</div><div class="race-name">Maratón de Valencia 2026</div><div class="race-meta">6 de diciembre 2026 · Valencia, España · 42.195 km</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:2rem;font-weight:800;color:var(--or);letter-spacing:-.04em;line-height:1">${daysLeft}</div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-top:2px">días</div></div></div></div>`;
+  document.getElementById('pf-race').innerHTML=`<div class="race-card" onclick="openRaceModal()" style="cursor:pointer;transition:opacity .2s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'"><div style="display:flex;align-items:center;justify-content:space-between;gap:1rem"><div><div class="race-label">📅 Próxima carrera — click para más info</div><div class="race-name">Maratón de Valencia 2026</div><div class="race-meta">6 de diciembre 2026 · Valencia, España · 42.195 km</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:2rem;font-weight:800;color:var(--or);letter-spacing:-.04em;line-height:1">${daysLeft}</div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-top:2px">días</div></div></div></div>`;
   pfStatSport='all'; drawPfStats();
   pfSportType='Run'; drawPfChart();
   // shoes
   const shoesEl=document.getElementById('pf-shoes');
   const shoes=gear.length?gear:(athlete.shoes||[]);
   if(!shoes.length){shoesEl.innerHTML='<div class="empty">Sin datos de zapatillas</div>';return;}
+  const retired=JSON.parse(localStorage.getItem('retired_shoes')||'[]');
   const maxKm=Math.max(...shoes.map(s=>(s.distance||0)/1000),1);
   shoesEl.innerHTML=shoes.map(s=>{
     const km=((s.distance||0)/1000).toFixed(0);
-    return `<div class="shoe-row">
-      <div class="shoe-l"><span style="font-size:20px">👟</span>
-      <div><div class="shoe-name">${s.name||s.id||'Zapatilla'}</div>
-      <div class="shoe-brand">${s.brand_name||''} ${s.model_name||''}</div>
-      <div class="shoe-bar-bg"><div class="shoe-bar-fill" style="width:${Math.round(km/maxKm*100)}%"></div></div></div></div>
-      <div class="shoe-km">${km}<span style="font-size:10px;color:var(--mu);margin-left:2px">km</span></div>
+    const isRetired=retired.includes(s.id);
+    return `<div class="shoe-row" id="shoe-${s.id}" style="${isRetired?'opacity:.45':''}">
+      <div class="shoe-l"><span style="font-size:20px">${isRetired?'📦':'👟'}</span>
+      <div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <div class="shoe-name">${s.name||s.id||'Zapatilla'}</div>
+          ${isRetired?`<span style="font-family:var(--font-mono);font-size:9px;color:var(--red);border:1px solid var(--red);padding:1px 5px;border-radius:10px">RETIRADA</span>`:''}
+        </div>
+        <div class="shoe-brand">${s.brand_name||''} ${s.model_name||''}</div>
+        <div class="shoe-bar-bg"><div class="shoe-bar-fill" style="width:${Math.round(km/maxKm*100)}%;background:${isRetired?'var(--fa)':'var(--or)'}"></div></div>
+      </div></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="shoe-km">${km}<span style="font-size:10px;color:var(--mu);margin-left:2px">km</span></div>
+        <button class="btn-retire ${isRetired?'retired':''}" onclick="toggleRetire('${s.id}',this)">
+          ${isRetired?'Reactivar':'Retirar'}
+        </button>
+      </div>
     </div>`;
   }).join('');
 }
@@ -425,23 +480,26 @@ function renderResumen(){
   const yr=new Date().getFullYear();
   let pool=resYearType==='year'?activities.filter(a=>new Date(a.start_date).getFullYear()===yr):activities;
   if(resSportType!=='all') pool=pool.filter(a=>a.type===resSportType);
-  const km=pool.reduce((s,a)=>s+a.distance/1000,0);
-  const secs=pool.reduce((s,a)=>s+(a.elapsed_time||a.moving_time),0);
-  const elev=pool.reduce((s,a)=>s+(a.total_elevation_gain||0),0);
+  const{start:ws}=weekRange(new Date());
+  const wkPool=(resSportType==='all'?activities:activities.filter(a=>a.type===resSportType)).filter(a=>new Date(a.start_date)>=ws);
+  const wkKm=wkPool.reduce((s,a)=>s+a.distance/1000,0);
+  const yrPool=(resSportType==='all'?activities:activities.filter(a=>a.type===resSportType)).filter(a=>new Date(a.start_date).getFullYear()===yr);
+  const yrKm=yrPool.reduce((s,a)=>s+a.distance/1000,0);
+  const allPool=resSportType==='all'?activities:activities.filter(a=>a.type===resSportType);
+  const totKm=allPool.reduce((s,a)=>s+a.distance/1000,0);
   document.getElementById('res-stats').innerHTML=[
-    {l:'Kilómetros',   v:km.toFixed(1),                          u:'km', n:pool.length+' actividades'},
-    {l:'Tiempo total', v:fmtTime(secs),                          u:'',   n:'tiempo transcurrido'},
-    {l:'Elevación',    v:Math.round(elev).toLocaleString(),      u:'m',  n:'acumulado'},
-    {l:'Actividades',  v:pool.length,                            u:'',   n:resYearType==='year'?yr+'':'histórico'},
+    {l:'Esta semana', v:wkKm.toFixed(1),   u:'km', n:wkPool.length+' actividades'},
+    {l:'Este año',    v:yrKm.toFixed(0),   u:'km', n:yrPool.length+' actividades'},
+    {l:'Total',       v:totKm.toFixed(0),  u:'km', n:allPool.length+' actividades'},
+    {l:'Actividades', v:pool.length,        u:'',   n:resYearType==='year'?yr+'':'histórico'},
   ].map(s=>`<div class="st"><div class="st-l">${s.l}</div><div class="st-v">${s.v}<em>${s.u}</em></div><div class="st-n">${s.n}</div></div>`).join('');
   const w10=last10Weeks();const lbs=w10.map(w=>w.label);
   mkChart('res-km','line',lbs,[{label:'km',data:w10.map(w=>+pool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+a.distance/1000,0).toFixed(1)),borderColor:'#FC4C02',backgroundColor:'rgba(252,76,2,.15)',fill:true,spanGaps:true}]);
   mkChart('res-elev','line',lbs,[{label:'m',data:w10.map(w=>Math.round(pool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+(a.total_elevation_gain||0),0))),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.15)',fill:true,spanGaps:true}]);
-  const{start:ws}=weekRange(new Date());
   const wkA=activities.filter(a=>new Date(a.start_date)>=ws);
   document.getElementById('res-week').innerHTML=wkA.length?wkA.map(a=>actRowHtml(a,activities.indexOf(a))).join(''):'<div class="empty">Sin actividades esta semana</div>';
   const vDate=new Date('2026-12-06');const dLeft=Math.ceil((vDate-new Date())/86400000);
-  document.getElementById('res-race').innerHTML=`<div class="race-card"><div style="display:flex;align-items:center;justify-content:space-between;gap:1rem"><div><div class="race-label">📅 Próxima carrera</div><div class="race-name">Maratón de Valencia 2026</div><div class="race-meta">6 de diciembre 2026 · Valencia, España · 42.195 km</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:2rem;font-weight:800;color:var(--or);letter-spacing:-.04em;line-height:1">${dLeft}</div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-top:2px">días</div></div></div></div>`;
+  document.getElementById('res-race').innerHTML=`<div class="race-card" onclick="openRaceModal()" style="cursor:pointer;transition:opacity .2s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'"><div style="display:flex;align-items:center;justify-content:space-between;gap:1rem"><div><div class="race-label">📅 Próxima carrera — click para más info</div><div class="race-name">Maratón de Valencia 2026</div><div class="race-meta">6 de diciembre 2026 · Valencia, España · 42.195 km</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:2rem;font-weight:800;color:var(--or);letter-spacing:-.04em;line-height:1">${dLeft}</div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-top:2px">días</div></div></div></div>`;
 }
 function resSport(t,el){resSportType=t;document.querySelectorAll('#res-tabs .sport-tab').forEach(x=>x.classList.remove('on'));el.classList.add('on');renderResumen();}
 function resYear(t,el){resYearType=t;document.querySelectorAll('.yt-btn').forEach(x=>x.classList.remove('on'));el.classList.add('on');renderResumen();}
@@ -705,7 +763,7 @@ async function drawPRs(sport){
     const found=segments.filter(s=>effortMap[s.name]?.length);
     if(!found.length){el.innerHTML='<div class="empty">No hay best efforts. Asegúrate de que tus actividades tienen segmentos en Strava.</div>';return;}
  
-    el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:1rem">
+    el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:1rem">
       ${found.map(s=>{
         const efforts=effortMap[s.name];
         const best=efforts[0];
@@ -740,7 +798,7 @@ async function drawPRs(sport){
       :[{d:750,l:'750m'},{d:1500,l:'1.5K'},{d:3800,l:'3.8K'}];
     const found=dists.filter(({d})=>pool.some(a=>a.distance>=d*0.95));
     if(!found.length){el.innerHTML='<div class="empty">Sin actividades suficientes</div>';return;}
-    el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
+    el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
       ${found.map(({d,l})=>{
         const ranked=[...pool].filter(a=>a.distance>=d*0.95).map(a=>({a,secs:d/a.average_speed})).sort((a,b)=>a.secs-b.secs);
         const best=ranked[0];
@@ -847,27 +905,27 @@ function loadDemo(){
            {id:'g3',name:'Hoka Clifton',brand_name:'Hoka',model_name:'Clifton 9',distance:1200000}]};
   gear=athlete.shoes;
   activities=[
-    mk('Carrera matutina Retiro','Run',8.4,5.05,145,168,65,0,'_cblIb}xLiBkB_BiBmBaBqBQqBNsBdBsBhBsBjBqBhBsBfBqBhBsBlBuB'),
-    mk('Fartlek Casa de Campo','Run',12.1,4.83,162,181,110,1,'ydblIz}xLgBdBgBfBiBhBkBjBmBhBkBfBiBeBiBiBmBoBqBqBoBsBoBuBqBuBsBuBsBqBoBsBq@'),
-    mk('Rodaje suave Moncloa','Run',6.2,5.45,138,155,42,2,'ofblIh~xLcBeBcBgBcBiBcBiBaBiBaBkBaBkBaBoB_BqB_BsB'),
-    mk('Ciclismo Guadarrama','Ride',58.3,2.30,142,174,820,3,'gcblIl~xLmBiB_CgBaCcBaCaB_CaB}B_B}B_B{B}B{B}B{B_C{B_C{B'),
-    mk('Intervalos 10×400m','Run',10.0,5.03,171,182,30,5,'wcblIn~xLaBoBaBoB_BqB_BsBaBoB_BmBaBlBaBjBaBhBaBfBaB'),
-    mk('Carrera larga 21K','Run',21.5,5.23,152,169,185,7,'qcblIp~xLgCkBeCgBgCeBgCcBgCaBiCaBiC_BiCaBiCaBgCcBeCeBcCgBaCiBaC'),
-    mk('Trail Guadarrama','Run',15.2,5.80,158,176,450,10,'mcblIr~xLkBjBkBjBmBlBoBnBoBpBqBpBqBrBsBrBsBrBsBpBsBnBqBnBqBlBqBjB'),
-    mk('MTB Sierra','Ride',42.0,2.97,155,178,1240,13,'icblIt~xLyCjByCjBwCjBuCjBuCjBsCjBsCjBsCjBqCjBqCjBoClBoCjBoCjBmCjB'),
-    mk('Natación 3K','Swim',3.0,2.0,130,148,0,14,''),
-    mk('Rodaje 10K','Run',10.0,5.10,148,165,55,18,'_cblIb}xLiBkB_BiBmBaBqBQqBNsBdBsBhBsBjBqBhBsBfBqBhBsBlBuB'),
-    mk('Ciclismo aeróbico','Ride',35.0,2.60,138,162,420,21,'gcblIl~xLmBiB_CgBaCcBaCaB_CaB}B_B}B_B{B}B{B}B{B_C{B_C{B'),
-    mk('Carrera fácil','Run',7.0,5.55,135,150,30,23,'ofblIh~xLcBeBcBgBcBiBcBiBaBiBaBkBaBkBaBoB_BqB_BsB'),
-    mk('Maratón Madrid','Run',42.2,5.05,160,178,200,28,'qcblIp~xLgCkBeCgBgCeBgCcBgCaBiCaBiC_BiCaBiCaBgCcBeCeBcCgBaCiBaC'),
-    mk('Bici carretera','Ride',80.0,2.20,148,172,950,32,'gcblIl~xLmBiB_CgBaCcBaCaB_CaB}B_B}B_B{B}B{B}B{B_C{B_C{B'),
-    mk('Media maratón','Run',21.1,4.55,163,179,120,42,'qcblIp~xLgCkBeCgBgCeBgCcBgCaBiCaBiC_BiCaBiCaBgCcBeCeBcCgBaCiBaC'),
-    mk('Carrera parque','Run',5.0,5.20,142,158,20,45,'_cblIb}xLiBkB_BiBmBaBqBQqBNsBdBsBhBsBjBqBhBsBfBqBhBsBlBuB'),
+    mkDemo('Carrera matutina Retiro','Run',8.4,5.05,145,168,65,0,'_cblIb}xLiBkB_BiBmBaBqBQqBNsBdBsBhBsBjBqBhBsBfBqBhBsBlBuB'),
+    mkDemo('Fartlek Casa de Campo','Run',12.1,4.83,162,181,110,1,'ydblIz}xLgBdBgBfBiBhBkBjBmBhBkBfBiBeBiBiBmBoBqBqBoBsBoBuBqBuBsBuBsBqBoBsBq@'),
+    mkDemo('Rodaje suave Moncloa','Run',6.2,5.45,138,155,42,2,'ofblIh~xLcBeBcBgBcBiBcBiBaBiBaBkBaBkBaBoB_BqB_BsB'),
+    mkDemo('Ciclismo Guadarrama','Ride',58.3,2.30,142,174,820,3,'gcblIl~xLmBiB_CgBaCcBaCaB_CaB}B_B}B_B{B}B{B}B{B_C{B_C{B'),
+    mkDemo('Intervalos 10×400m','Run',10.0,5.03,171,182,30,5,'wcblIn~xLaBoBaBoB_BqB_BsBaBoB_BmBaBlBaBjBaBhBaBfBaB'),
+    mkDemo('Carrera larga 21K','Run',21.5,5.23,152,169,185,7,'qcblIp~xLgCkBeCgBgCeBgCcBgCaBiCaBiC_BiCaBiCaBgCcBeCeBcCgBaCiBaC'),
+    mkDemo('Trail Guadarrama','Run',15.2,5.80,158,176,450,10,'mcblIr~xLkBjBkBjBmBlBoBnBoBpBqBpBqBrBsBrBsBrBsBpBsBnBqBnBqBlBqBjB'),
+    mkDemo('MTB Sierra','Ride',42.0,2.97,155,178,1240,13,'icblIt~xLyCjByCjBwCjBuCjBuCjBsCjBsCjBsCjBqCjBqCjBoClBoCjBoCjBmCjB'),
+    mkDemo('Natación 3K','Swim',3.0,2.0,130,148,0,14,''),
+    mkDemo('Rodaje 10K','Run',10.0,5.10,148,165,55,18,'_cblIb}xLiBkB_BiBmBaBqBQqBNsBdBsBhBsBjBqBhBsBfBqBhBsBlBuB'),
+    mkDemo('Ciclismo aeróbico','Ride',35.0,2.60,138,162,420,21,'gcblIl~xLmBiB_CgBaCcBaCaB_CaB}B_B}B_B{B}B{B}B{B_C{B_C{B'),
+    mkDemo('Carrera fácil','Run',7.0,5.55,135,150,30,23,'ofblIh~xLcBeBcBgBcBiBcBiBaBiBaBkBaBkBaBoB_BqB_BsB'),
+    mkDemo('Maratón Madrid','Run',42.2,5.05,160,178,200,28,'qcblIp~xLgCkBeCgBgCeBgCcBgCaBiCaBiC_BiCaBiCaBgCcBeCeBcCgBaCiBaC'),
+    mkDemo('Bici carretera','Ride',80.0,2.20,148,172,950,32,'gcblIl~xLmBiB_CgBaCcBaCaB_CaB}B_B}B_B{B}B{B}B{B_C{B_C{B'),
+    mkDemo('Media maratón','Run',21.1,4.55,163,179,120,42,'qcblIp~xLgCkBeCgBgCeBgCcBgCaBiCaBiC_BiCaBiCaBgCcBeCeBcCgBaCiBaC'),
+    mkDemo('Carrera parque','Run',5.0,5.20,142,158,20,45,'_cblIb}xLiBkB_BiBmBaBqBQqBNsBdBsBhBsBjBqBhBsBfBqBhBsBlBuB'),
   ];
   hideLoading(); showApp();
 }
-function mk(n,t,km,mk,hr,hrM,el,daysAgo,poly){
-  const secs=Math.round(km*mk*60);
+function mkDemo(n,t,km,minPerKm,hr,hrM,el,daysAgo,poly){
+  const secs=Math.round(km*minPerKm*60);
   return{id:Math.random(),name:n,type:t,distance:km*1000,moving_time:secs,
     total_elevation_gain:el,average_heartrate:hr,max_heartrate:hrM,
     average_speed:km*1000/secs,start_date:new Date(Date.now()-daysAgo*86400000).toISOString(),
@@ -930,8 +988,72 @@ function mkChart(id,type,labels,datasets,extra={}){
   new Chart(c,{type,data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
     scales:{x:tk,y:{...tk,...yExtra,...(extra.max!=null?{max:extra.max}:{}),...(extra.cbY?{ticks:{...tk.ticks,callback:extra.cbY}}:{})}}}});
 }
-function showLoading(m){document.getElementById('loading-msg').textContent=m||'Cargando…';document.getElementById('loading').style.display='flex';}
-function hideLoading(){document.getElementById('loading').style.display='none';}
+// ── RACE MODAL ─────────────────────────────────
+let raceMap=null;
+function openRaceModal(){
+  document.getElementById('race-modal').classList.add('open');
+  document.getElementById('modal-days').textContent=Math.ceil((new Date('2026-12-06')-new Date())/86400000);
+  setTimeout(()=>{
+    if(!raceMap){
+      raceMap=L.map('race-modal-map');
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© CartoDB',maxZoom:19}).addTo(raceMap);
+      // Valencia Marathon route - key waypoints along the course
+      const coords=[
+        [39.4699,-0.3763],[39.4752,-0.3821],[39.4801,-0.3756],[39.4834,-0.3689],
+        [39.4779,-0.3634],[39.4712,-0.3589],[39.4658,-0.3612],[39.4623,-0.3698],
+        [39.4589,-0.3743],[39.4612,-0.3812],[39.4667,-0.3867],[39.4723,-0.3834],
+        [39.4756,-0.3778],[39.4801,-0.3712],[39.4845,-0.3645],[39.4878,-0.3578],
+        [39.4834,-0.3512],[39.4789,-0.3478],[39.4734,-0.3512],[39.4689,-0.3556],
+        [39.4645,-0.3523],[39.4601,-0.3478],[39.4578,-0.3412],[39.4612,-0.3356],
+        [39.4656,-0.3323],[39.4701,-0.3289],[39.4745,-0.3256],[39.4712,-0.3312],
+        [39.4678,-0.3367],[39.4645,-0.3423],[39.4612,-0.3478],[39.4578,-0.3534],
+        [39.4623,-0.3578],[39.4667,-0.3612],[39.4712,-0.3645],[39.4734,-0.3689],
+        [39.4712,-0.3745],[39.4678,-0.3789],[39.4645,-0.3823],[39.4601,-0.3856],
+        [39.4623,-0.3912],[39.4667,-0.3945],[39.4712,-0.3912],[39.4734,-0.3856]
+      ];
+      const poly=L.polyline(coords,{color:'#FC4C02',weight:3,opacity:.9}).addTo(raceMap);
+      L.circleMarker(coords[0],{radius:7,color:'#1db954',fillColor:'#1db954',fillOpacity:1}).addTo(raceMap).bindTooltip('Salida',{permanent:true,className:'pr-tooltip'});
+      L.circleMarker(coords[coords.length-1],{radius:7,color:'#facc15',fillColor:'#facc15',fillOpacity:1}).addTo(raceMap).bindTooltip('Meta',{permanent:true,className:'pr-tooltip'});
+      raceMap.fitBounds(poly.getBounds(),{padding:[20,20]});
+    } else { raceMap.invalidateSize(); }
+  },100);
+}
+function closeRaceModal(){ document.getElementById('race-modal').classList.remove('open'); }
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeRaceModal();});
+ 
+// ── SHOES RETIRE ───────────────────────────────
+function toggleRetire(id,btn){
+  const retired=JSON.parse(localStorage.getItem('retired_shoes')||'[]');
+  const idx=retired.indexOf(id);
+  if(idx>=0){ retired.splice(idx,1); } else { retired.push(id); }
+  localStorage.setItem('retired_shoes',JSON.stringify(retired));
+  // Re-render shoes
+  const shoes=gear.length?gear:(athlete.shoes||[]);
+  const maxKm=Math.max(...shoes.map(s=>(s.distance||0)/1000),1);
+  const shoesEl=document.getElementById('pf-shoes');
+  const newRetired=JSON.parse(localStorage.getItem('retired_shoes')||'[]');
+  shoesEl.innerHTML=shoes.map(s=>{
+    const km=((s.distance||0)/1000).toFixed(0);
+    const isRetired=newRetired.includes(s.id);
+    return `<div class="shoe-row" id="shoe-${s.id}" style="${isRetired?'opacity:.45':''}">
+      <div class="shoe-l"><span style="font-size:20px">${isRetired?'📦':'👟'}</span>
+      <div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <div class="shoe-name">${s.name||s.id||'Zapatilla'}</div>
+          ${isRetired?`<span style="font-family:var(--font-mono);font-size:9px;color:var(--red);border:1px solid var(--red);padding:1px 5px;border-radius:10px">RETIRADA</span>`:''}
+        </div>
+        <div class="shoe-brand">${s.brand_name||''} ${s.model_name||''}</div>
+        <div class="shoe-bar-bg"><div class="shoe-bar-fill" style="width:${Math.round(km/maxKm*100)}%;background:${isRetired?'var(--fa)':'var(--or)'}"></div></div>
+      </div></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="shoe-km">${km}<span style="font-size:10px;color:var(--mu);margin-left:2px">km</span></div>
+        <button class="btn-retire ${isRetired?'retired':''}" onclick="toggleRetire('${s.id}',this)">
+          ${isRetired?'Reactivar':'Retirar'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
 function showAuth(){document.getElementById('screen-auth').style.display='flex';}
 function logout(){
   localStorage.removeItem('strava_token');localStorage.removeItem('strava_athlete');

@@ -251,6 +251,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
             <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:.75rem">RITMO POR KM</div><div style="position:relative;height:160px"><canvas id="det-pace"></canvas></div></div>
             <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:.75rem">FRECUENCIA CARDÍACA</div><div style="position:relative;height:160px" id="det-hr-wrap"><canvas id="det-hr"></canvas></div></div>
           </div>
+          <div id="det-hr-zones" style="margin-top:1rem"></div>
           <div id="det-splits" style="margin-top:1rem"></div>
           <div id="det-comments" style="margin-top:1rem"></div>
         </div>
@@ -425,7 +426,7 @@ function renderPerfil(){
   const shoes=gear.length?gear:(athlete.shoes||[]);
   if(!shoes.length){shoesEl.innerHTML='<div class="empty">Sin datos de zapatillas</div>';return;}
   const retired=JSON.parse(localStorage.getItem('retired_shoes')||'[]');
-  const maxKm=Math.max(...shoes.map(s=>(s.distance||0)/1000),1);
+  const maxKm=1000; // fixed 1000km max for bar
   shoesEl.innerHTML=shoes.map(s=>{
     const km=((s.distance||0)/1000).toFixed(0);
     const isRetired=retired.includes(s.id);
@@ -579,6 +580,7 @@ async function selectAct(idx){
   },80);
  
   // Fetch full activity detail (real splits, photos, comments)
+  document.getElementById('det-hr-zones').innerHTML='';
   showDetLoading(true);
   try{
     const [detail, photos, comments] = await Promise.all([
@@ -660,6 +662,9 @@ async function selectAct(idx){
       document.getElementById('det-splits').innerHTML='';
     }
  
+    // HR Zones from splits
+    renderDetHRZones(splits, detail);
+ 
     // Photos - Strava returns urls as object with size keys
     const photoEl=document.getElementById('det-photos');
     if(photos.length){
@@ -719,6 +724,75 @@ async function selectAct(idx){
   }
  
   det.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+ 
+function renderDetHRZones(splits, detail){
+  const el=document.getElementById('det-hr-zones');
+  if(!el) return;
+ 
+  // Use heart_rate_zones from detail if available, otherwise calculate from splits
+  const zones=[
+    {name:'Z1 Recuperación', color:'#3b82f6', min:0,   max:0.60},
+    {name:'Z2 Aeróbico',     color:'#1db954', min:0.60,max:0.70},
+    {name:'Z3 Tempo',        color:'#f59e0b', min:0.70,max:0.80},
+    {name:'Z4 Umbral',       color:'#f97316', min:0.80,max:0.90},
+    {name:'Z5 Máximo',       color:'#ef4444', min:0.90,max:1.00},
+  ];
+ 
+  // Estimate max HR: use athlete's max or default 190
+  const maxHR=detail.max_heartrate||190;
+  const avgHR=detail.average_heartrate;
+  if(!avgHR&&!splits?.some(s=>s.average_heartrate)){el.innerHTML='';return;}
+ 
+  // Count time per zone from splits (each split has moving_time + average_heartrate)
+  const zoneSecs=[0,0,0,0,0];
+  let totalSecs=0;
+  const hrSplits=splits.filter(s=>s.average_heartrate&&s.moving_time>0);
+ 
+  if(hrSplits.length){
+    hrSplits.forEach(s=>{
+      const ratio=s.average_heartrate/maxHR;
+      const zi=ratio<0.60?0:ratio<0.70?1:ratio<0.80?2:ratio<0.90?3:4;
+      zoneSecs[zi]+=s.moving_time;
+      totalSecs+=s.moving_time;
+    });
+  } else if(avgHR){
+    // Fallback: estimate from avg HR only
+    const ratio=avgHR/maxHR;
+    const zi=ratio<0.60?0:ratio<0.70?1:ratio<0.80?2:ratio<0.90?3:4;
+    zoneSecs[zi]=100;
+    totalSecs=100;
+  }
+ 
+  if(!totalSecs){el.innerHTML='';return;}
+ 
+  const pcts=zoneSecs.map(s=>Math.round(s/totalSecs*100));
+  // Fix rounding
+  const diff=100-pcts.reduce((a,b)=>a+b,0);
+  const maxIdx=pcts.indexOf(Math.max(...pcts));
+  pcts[maxIdx]+=diff;
+ 
+  const activeZones=zones.map((z,i)=>({...z,pct:pcts[i]})).filter(z=>z.pct>0);
+  if(!activeZones.length){el.innerHTML='';return;}
+ 
+  el.innerHTML=`
+    <div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);letter-spacing:.06em;text-transform:uppercase;margin-bottom:.75rem">
+      Zonas de frecuencia cardíaca
+      <span style="color:var(--fa);margin-left:8px">FC máx estimada: ${maxHR} bpm</span>
+    </div>
+    <div style="display:flex;border-radius:8px;overflow:hidden;height:28px;margin-bottom:.75rem;gap:1px">
+      ${zones.map((z,i)=>pcts[i]>0?`<div style="width:${pcts[i]}%;background:${z.color};transition:width .6s ease;position:relative;display:flex;align-items:center;justify-content:center">
+        ${pcts[i]>=8?`<span style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:white">${pcts[i]}%</span>`:''}
+      </div>`:'').join('')}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px 16px">
+      ${zones.map((z,i)=>pcts[i]>0?`<div style="display:flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:11px">
+        <span style="width:8px;height:8px;border-radius:2px;background:${z.color};display:inline-block;flex-shrink:0"></span>
+        <span style="color:var(--mu)">${z.name}</span>
+        <span style="color:var(--tx);font-weight:600">${pcts[i]}%</span>
+        <span style="color:var(--fa)">${fmtTime(zoneSecs[i]||0)}</span>
+      </div>`:'').join('')}
+    </div>`;
 }
  
 function showDetLoading(on){
@@ -1045,7 +1119,7 @@ function toggleRetire(id,btn){
   localStorage.setItem('retired_shoes',JSON.stringify(retired));
   // Re-render shoes
   const shoes=gear.length?gear:(athlete.shoes||[]);
-  const maxKm=Math.max(...shoes.map(s=>(s.distance||0)/1000),1);
+  const maxKm=1000; // fixed 1000km max for bar
   const shoesEl=document.getElementById('pf-shoes');
   const newRetired=JSON.parse(localStorage.getItem('retired_shoes')||'[]');
   shoesEl.innerHTML=shoes.map(s=>{

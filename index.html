@@ -77,7 +77,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 .shoe-brand{font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-top:1px}
 .shoe-km{font-family:var(--font-mono);font-size:13px;font-weight:500;color:var(--or)}
 .shoe-bar-bg{height:3px;background:var(--s3);border-radius:2px;margin-top:5px;overflow:hidden;width:100%;max-width:160px}
-.shoe-bar-fill{height:100%;background:var(--or);border-radius:2px;transition:width .8s cubic-bezier(.2,1,.2,1),background .4s ease}
+.shoe-bar-fill{height:100%;background:var(--or);border-radius:2px;transition:width 2s cubic-bezier(.1,1,.1,1),background .4s ease}
 .race-card{background:linear-gradient(135deg,rgba(252,76,2,.1),rgba(252,76,2,.03));border:1px solid var(--or3);border-radius:14px;padding:1.25rem 1.5rem;margin-bottom:1rem}
 .race-label{font-family:var(--font-mono);font-size:10px;color:var(--or);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
 .race-name{font-size:1rem;font-weight:700}
@@ -767,67 +767,70 @@ function renderDetHRZones(splits, detail){
   const el=document.getElementById('det-hr-zones');
   if(!el) return;
  
-  // Use heart_rate_zones from detail if available, otherwise calculate from splits
-  const zones=[
-    {name:'Z1 Recuperación', color:'#3b82f6', min:0,   max:0.60},
-    {name:'Z2 Aeróbico',     color:'#1db954', min:0.60,max:0.70},
-    {name:'Z3 Tempo',        color:'#f59e0b', min:0.70,max:0.80},
-    {name:'Z4 Umbral',       color:'#f97316', min:0.80,max:0.90},
-    {name:'Z5 Máximo',       color:'#ef4444', min:0.90,max:1.00},
-  ];
- 
-  // Estimate max HR: use athlete's max or default 190
-  const maxHR=detail.max_heartrate||190;
   const avgHR=detail.average_heartrate;
   if(!avgHR&&!splits?.some(s=>s.average_heartrate)){el.innerHTML='';return;}
  
-  // Count time per zone from splits (each split has moving_time + average_heartrate)
+  // Use best available max HR: activity max > athlete max > estimated (220 - age) > 190
+  const maxHR=detail.max_heartrate
+    ||(athlete.max_heartrate)
+    ||(athlete.age?220-athlete.age:0)
+    ||190;
+ 
+  // Standard Strava/Garmin HR zones based on % of max HR — absolute bpm boundaries
+  const zones=[
+    {name:'Z1',  label:'Recuperación', color:'#60a5fa', min:0,             max:Math.round(maxHR*0.60)},
+    {name:'Z2',  label:'Resistencia',  color:'#34d399', min:Math.round(maxHR*0.60)+1, max:Math.round(maxHR*0.70)},
+    {name:'Z3',  label:'Aeróbico',     color:'#fbbf24', min:Math.round(maxHR*0.70)+1, max:Math.round(maxHR*0.80)},
+    {name:'Z4',  label:'Umbral',       color:'#f97316', min:Math.round(maxHR*0.80)+1, max:Math.round(maxHR*0.90)},
+    {name:'Z5',  label:'Máximo',       color:'#ef4444', min:Math.round(maxHR*0.90)+1, max:maxHR},
+  ];
+ 
+  // Count time per zone from splits
   const zoneSecs=[0,0,0,0,0];
   let totalSecs=0;
   const hrSplits=splits.filter(s=>s.average_heartrate&&s.moving_time>0);
  
   if(hrSplits.length){
     hrSplits.forEach(s=>{
-      const ratio=s.average_heartrate/maxHR;
-      const zi=ratio<0.60?0:ratio<0.70?1:ratio<0.80?2:ratio<0.90?3:4;
+      const bpm=s.average_heartrate;
+      const zi=bpm<=zones[0].max?0:bpm<=zones[1].max?1:bpm<=zones[2].max?2:bpm<=zones[3].max?3:4;
       zoneSecs[zi]+=s.moving_time;
       totalSecs+=s.moving_time;
     });
   } else if(avgHR){
-    // Fallback: estimate from avg HR only
-    const ratio=avgHR/maxHR;
-    const zi=ratio<0.60?0:ratio<0.70?1:ratio<0.80?2:ratio<0.90?3:4;
-    zoneSecs[zi]=100;
-    totalSecs=100;
+    // Fallback: single zone from avg HR
+    const bpm=avgHR;
+    const zi=bpm<=zones[0].max?0:bpm<=zones[1].max?1:bpm<=zones[2].max?2:bpm<=zones[3].max?3:4;
+    zoneSecs[zi]=100; totalSecs=100;
   }
  
   if(!totalSecs){el.innerHTML='';return;}
  
   const pcts=zoneSecs.map(s=>Math.round(s/totalSecs*100));
-  // Fix rounding
   const diff=100-pcts.reduce((a,b)=>a+b,0);
-  const maxIdx=pcts.indexOf(Math.max(...pcts));
-  pcts[maxIdx]+=diff;
- 
-  const activeZones=zones.map((z,i)=>({...z,pct:pcts[i]})).filter(z=>z.pct>0);
-  if(!activeZones.length){el.innerHTML='';return;}
+  pcts[pcts.indexOf(Math.max(...pcts))]+=diff;
  
   el.innerHTML=`
-    <div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);letter-spacing:.06em;text-transform:uppercase;margin-bottom:.75rem">
-      Zonas de frecuencia cardíaca
-      <span style="color:var(--fa);margin-left:8px">FC máx estimada: ${maxHR} bpm</span>
+    <div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);letter-spacing:.06em;text-transform:uppercase;margin-bottom:.75rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px">
+      <span>Zonas de frecuencia cardíaca</span>
+      <span style="color:var(--fa)">FC máx: ${maxHR} bpm · Rango Z1–Z5: <${zones[0].max} → >${zones[3].max}</span>
     </div>
-    <div style="display:flex;border-radius:8px;overflow:hidden;height:28px;margin-bottom:.75rem;gap:1px">
-      ${zones.map((z,i)=>pcts[i]>0?`<div style="width:${pcts[i]}%;background:${z.color};transition:width .6s ease;position:relative;display:flex;align-items:center;justify-content:center">
-        ${pcts[i]>=8?`<span style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:white">${pcts[i]}%</span>`:''}
+    <div style="display:flex;border-radius:8px;overflow:hidden;height:32px;margin-bottom:10px;gap:1px">
+      ${zones.map((z,i)=>pcts[i]>0?`<div style="width:${pcts[i]}%;background:${z.color};display:flex;align-items:center;justify-content:center;transition:width .5s ease">
+        ${pcts[i]>=7?`<span style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:rgba(0,0,0,.75)">${pcts[i]}%</span>`:''}
       </div>`:'').join('')}
     </div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px 16px">
-      ${zones.map((z,i)=>pcts[i]>0?`<div style="display:flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:11px">
-        <span style="width:8px;height:8px;border-radius:2px;background:${z.color};display:inline-block;flex-shrink:0"></span>
-        <span style="color:var(--mu)">${z.name}</span>
-        <span style="color:var(--tx);font-weight:600">${pcts[i]}%</span>
-        <span style="color:var(--fa)">${fmtTime(zoneSecs[i]||0)}</span>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px">
+      ${zones.map((z,i)=>pcts[i]>0?`<div style="display:flex;align-items:center;gap:8px;background:var(--s2);border-radius:8px;padding:7px 10px;border:1px solid var(--bd)">
+        <div style="width:10px;height:10px;border-radius:3px;background:${z.color};flex-shrink:0"></div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:baseline;gap:5px">
+            <span style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:${z.color}">${z.name}</span>
+            <span style="font-size:11px;color:var(--tx)">${z.label}</span>
+          </div>
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--fa);margin-top:1px">${z.min}–${z.max} bpm · ${fmtTime(zoneSecs[i]||0)}</div>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:${z.color}">${pcts[i]}%</div>
       </div>`:'').join('')}
     </div>`;
 }

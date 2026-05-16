@@ -1,23 +1,24 @@
 const https = require('https');
-
+ 
 exports.handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, X-Strava-Token',
     'Content-Type': 'application/json'
   };
-
+ 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
   }
-
+ 
   const token = event.headers['x-strava-token'];
   if (!token) return { statusCode: 401, headers, body: JSON.stringify({ error: 'No token' }) };
-
-  // path comes after /.netlify/functions/strava-api/
-  const stravaPath = event.path.replace('/.netlify/functions/strava-api', '') || '/athlete';
+ 
+  // Support both Netlify path formats
+  const fullPath = event.rawPath || event.path || '';
+  const stravaPath = fullPath.replace('/.netlify/functions/strava-api', '') || '/athlete';
   const qs = event.rawQuery ? '?' + event.rawQuery : '';
-
+ 
   return new Promise((resolve) => {
     https.get({
       hostname: 'www.strava.com',
@@ -30,3 +31,4 @@ exports.handler = async (event) => {
     }).on('error', e => resolve({ statusCode: 500, headers, body: JSON.stringify({ error: e.message }) }));
   });
 };
+ 

@@ -304,8 +304,8 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 const CLIENT_ID='237317';
 const REDIRECT='https://ignaciodocesainz.github.io/Strava';
 // Cloudflare Worker URL — update this after deploying your worker
-const WORKER='https://strava.ignaciodocee.workers.dev';
-let activities=[],athlete={},gear=[];
+const WORKER='https://strava-proxy.YOUR-SUBDOMAIN.workers.dev';
+let activities=[],athlete={},gear=[],athleteZones=[];
 let filterType='all',resSportType='all',resYearType='year',prSportType='Run',pfSportType='Run';
 let mapDet=null;
  
@@ -379,11 +379,14 @@ function startOAuth(){
 async function loadApp(token,savedAth){
   showLoading('Cargando actividades…');
   try{
-    const [ath,acts]=await Promise.all([
+    const [ath,acts,zones]=await Promise.all([
       apiFetch('/athlete',token),
-      apiFetch('/athlete/activities?per_page=100&page=1',token)
+      apiFetch('/athlete/activities?per_page=100&page=1',token),
+      apiFetch('/athlete/zones',token).catch(()=>null),
     ]);
     athlete=ath; activities=acts;
+    // Store Strava HR zones globally — heart_rate.zones array, Z1=index 0 (lowest)
+    if(zones?.heart_rate?.zones) athleteZones=zones.heart_rate.zones;
     if(ath.shoes?.length){
       gear=await Promise.all(ath.shoes.map(s=>apiFetch('/gear/'+s.id,token).catch(()=>s)));
     } else { gear=[]; }
@@ -774,84 +777,81 @@ function renderDetHRZones(splits, detail){
   const avgHR=detail.average_heartrate;
   if(!avgHR&&!splits?.some(s=>s.average_heartrate)){el.innerHTML='';return;}
  
-  // Personal FCmax: user-set > athlete profile > activity max > age formula > 190
-  const savedMax=parseInt(localStorage.getItem('personal_fcmax')||'0');
-  const maxHR=savedMax||athlete.max_heartrate||(athlete.age?220-athlete.age:0)||detail.max_heartrate||190;
+  const zoneColors=['#60a5fa','#34d399','#fbbf24','#f97316','#ef4444'];
+  const zoneLabels=['Recuperación','Resistencia','Aeróbico','Umbral','Máximo'];
  
-  // Strava zone boundaries (% of FCmax)
-  const zones=[
-    {name:'Zona 1', label:'Recuperación activa', color:'#60a5fa', lo:0,    hi:0.60},
-    {name:'Zona 2', label:'Resistencia base',     color:'#34d399', lo:0.60, hi:0.70},
-    {name:'Zona 3', label:'Aeróbico',             color:'#fbbf24', lo:0.70, hi:0.80},
-    {name:'Zona 4', label:'Umbral anaeróbico',    color:'#f97316', lo:0.80, hi:0.90},
-    {name:'Zona 5', label:'Máximo',               color:'#ef4444', lo:0.90, hi:1.00},
-  ].map(z=>({...z, minBpm:Math.round(maxHR*z.lo), maxBpm:Math.round(maxHR*z.hi)}));
+  // Use Strava athlete zones directly — Z1=lowest, Z5=highest
+  let zones;
+  if(athleteZones && athleteZones.length>=5){
+    zones=athleteZones.map((z,i)=>({
+      name:`Zona ${i+1}`, label:zoneLabels[i]||'', color:zoneColors[i],
+      minBpm:z.min, maxBpm:z.max===-1?999:z.max,
+    }));
+  } else {
+    const maxHR=parseInt(localStorage.getItem('personal_fcmax')||'0')
+      ||athlete.max_heartrate||detail.max_heartrate||190;
+    zones=[0.60,0.70,0.80,0.90,1.00].map((hi,i,arr)=>({
+      name:`Zona ${i+1}`, label:zoneLabels[i], color:zoneColors[i],
+      minBpm:i===0?0:Math.round(maxHR*arr[i-1])+1,
+      maxBpm:i===4?999:Math.round(maxHR*hi),
+    }));
+  }
  
-  // Classify each split into a zone by bpm
+  function classifyBPM(bpm){
+    for(let i=0;i<zones.length;i++){
+      if(bpm>=zones[i].minBpm&&bpm<=zones[i].maxBpm) return i;
+    }
+    return zones.length-1;
+  }
+ 
   const zoneSecs=[0,0,0,0,0];
   let totalSecs=0;
   const hrSplits=splits.filter(s=>s.average_heartrate&&s.moving_time>0&&s.distance>=10);
- 
   if(hrSplits.length){
     hrSplits.forEach(s=>{
-      const bpm=s.average_heartrate;
-      let zi=4;
-      for(let i=0;i<zones.length;i++){
-        if(bpm<=zones[i].maxBpm){zi=i;break;}
-      }
-      zoneSecs[zi]+=s.moving_time;
+      zoneSecs[classifyBPM(Math.round(s.average_heartrate))]+=s.moving_time;
       totalSecs+=s.moving_time;
     });
   } else if(avgHR){
-    let zi=4;
-    for(let i=0;i<zones.length;i++){if(avgHR<=zones[i].maxBpm){zi=i;break;}}
-    zoneSecs[zi]=detail.moving_time||100;
+    zoneSecs[classifyBPM(Math.round(avgHR))]=detail.moving_time||100;
     totalSecs=detail.moving_time||100;
   }
- 
   if(!totalSecs){el.innerHTML='';return;}
  
   const pcts=zoneSecs.map(s=>+(s/totalSecs*100).toFixed(1));
-  const sum=pcts.reduce((a,b)=>a+b,0);
-  if(sum>0){ const diff=100-Math.round(sum); pcts[pcts.indexOf(Math.max(...pcts))]+=diff; }
+  pcts[pcts.indexOf(Math.max(...pcts))]+=100-Math.round(pcts.reduce((a,b)=>a+b,0));
  
-  // Strava-style: each zone = one horizontal bar
   const rows=zones.map((z,i)=>{
-    const pct=pcts[i];
-    const secs=zoneSecs[i];
+    const pct=pcts[i]; const secs=zoneSecs[i];
     return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <div style="width:52px;flex-shrink:0;font-family:var(--font-mono);font-size:11px;font-weight:600;color:${z.color}">${z.name.replace('Zona ','Z')}</div>
-      <div style="flex:1;background:var(--s3);border-radius:4px;height:20px;overflow:hidden;position:relative">
-        <div style="width:${pct}%;height:100%;background:${z.color};border-radius:4px;transition:width .5s ease;display:flex;align-items:center;padding-left:8px">
+      <div style="width:52px;flex-shrink:0;font-family:var(--font-mono);font-size:11px;font-weight:600;color:${z.color}">Z${i+1}</div>
+      <div style="flex:1;background:var(--s3);border-radius:4px;height:20px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${z.color};border-radius:4px;display:flex;align-items:center;padding-left:8px;min-width:${pct>0?'4px':'0'}">
           ${pct>=8?`<span style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:rgba(0,0,0,.8)">${Math.round(pct)}%</span>`:''}
         </div>
       </div>
-      <div style="width:70px;text-align:right;flex-shrink:0">
+      <div style="width:80px;text-align:right;flex-shrink:0">
         <span style="font-family:var(--font-mono);font-size:11px;color:var(--tx);font-weight:600">${Math.round(pct)}%</span>
-        <span style="font-family:var(--font-mono);font-size:10px;color:var(--fa);margin-left:5px">${fmtTime(Math.round(secs))}</span>
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--fa);margin-left:4px">${fmtTime(Math.round(secs))}</span>
       </div>
     </div>`;
   }).join('');
  
+  const source=athleteZones?.length>=5?'zonas de tu cuenta Strava':'zonas estimadas';
   el.innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
-      <div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);letter-spacing:.06em;text-transform:uppercase">Zonas de frecuencia cardíaca</div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-family:var(--font-mono);font-size:10px;color:var(--fa)">FC máx: </span>
-        <input id="fcmax-input" type="number" value="${maxHR}" min="120" max="220"
-          style="width:52px;background:var(--s3);border:1px solid var(--bd);border-radius:5px;padding:2px 6px;font-family:var(--font-mono);font-size:11px;color:var(--tx);outline:none;text-align:center"
-          onchange="updateFCMax(this.value,${detail.id})"
-          title="Introduce tu FC máxima personal para calibrar las zonas">
-        <span style="font-family:var(--font-mono);font-size:10px;color:var(--fa)">bpm</span>
-      </div>
+    <div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">
+      <span>Frecuencia cardíaca por zona</span><span style="color:var(--fa)">${source}</span>
     </div>
-    <div style="margin-bottom:6px">
-      ${rows}
-    </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
-      ${zones.map((z,i)=>`<div style="font-family:var(--font-mono);font-size:10px;color:var(--fa)">${z.name.replace('Zona ','Z')}: ${z.minBpm}–${z.maxBpm} bpm</div>`).join('<span style="color:var(--bd)">·</span>')}
+    <div style="margin-bottom:8px">${rows}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${zones.map((z,i)=>`<div style="display:flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:10px">
+        <span style="width:7px;height:7px;border-radius:2px;background:${z.color};display:inline-block"></span>
+        <span style="color:var(--mu)">Z${i+1} ${z.label}</span>
+        <span style="color:var(--fa)">${z.minBpm}–${z.maxBpm===999?'∞':z.maxBpm}</span>
+      </div>`).join('')}
     </div>`;
 }
+ 
  
 function updateFCMax(val, activityId){
   const v=parseInt(val);

@@ -1,9 +1,0 @@
-[[redirects]]
-  from = "/strava-api/*"
-  to = "/.netlify/functions/strava-api/:splat"
-  status = 200
-
-[[redirects]]
-  from = "/strava-token"
-  to = "/.netlify/functions/strava-token"
-  status = 200

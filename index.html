@@ -302,7 +302,9 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
  
 <script>
 const CLIENT_ID='237317';
-const REDIRECT='https://melodious-marshmallow-a02a9f.netlify.app';
+const REDIRECT='https://ignaciodocesainz.github.io/Strava';
+// Cloudflare Worker URL — update this after deploying your worker
+const WORKER='https://strava.ignaciodocee.workers.dev';
 let activities=[],athlete={},gear=[];
 let filterType='all',resSportType='all',resYearType='year',prSportType='Run',pfSportType='Run';
 let mapDet=null;
@@ -329,7 +331,7 @@ window.addEventListener('DOMContentLoaded',async()=>{
     history.replaceState(null,'',window.location.pathname);
     showLoading('Obteniendo token…');
     try{
-      const res=await fetch('/.netlify/functions/strava-token',{
+      const res=await fetch(WORKER+'/token',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({code, redirect_uri: REDIRECT})
@@ -395,7 +397,7 @@ async function loadApp(token,savedAth){
  
 async function apiFetch(path,token){
   const t=token||localStorage.getItem('strava_token');
-  const r=await fetch('/.netlify/functions/strava-api'+path,{headers:{'X-Strava-Token':t}});
+  const r=await fetch(WORKER+'/api'+path,{headers:{'X-Strava-Token':t}});
   if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.message||'HTTP '+r.status);}
   return r.json();
 }

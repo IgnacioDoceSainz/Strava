@@ -252,6 +252,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
             <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:.75rem">FRECUENCIA CARDÍACA</div><div style="position:relative;height:160px" id="det-hr-wrap"><canvas id="det-hr"></canvas></div></div>
           </div>
           <div id="det-hr-zones" style="margin-top:1rem"></div>
+          <div id="det-best-efforts" style="margin-top:1rem"></div>
           <div id="det-splits" style="margin-top:1rem"></div>
           <div id="det-comments" style="margin-top:1rem"></div>
         </div>
@@ -304,7 +305,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 const CLIENT_ID='237317';
 const REDIRECT='https://ignaciodocesainz.github.io/Strava';
 // Cloudflare Worker URL — update this after deploying your worker
-const WORKER='https://strava.ignaciodocee.workers.dev';
+const WORKER='https://strava-proxy.YOUR-SUBDOMAIN.workers.dev';
 let activities=[],athlete={},gear=[],athleteZones=[];
 let filterType='all',resSportType='all',resYearType='year',prSportType='Run',pfSportType='Run';
 let mapDet=null;
@@ -462,7 +463,6 @@ function renderPerfil(){
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <div class="shoe-name" style="color:${isRetired?'var(--mu)':'var(--tx)'}">${s.name||s.id||'Zapatilla'}</div>
-            ${isRetired?'<span style="font-family:var(--font-mono);font-size:9px;color:var(--red);border:1px solid rgba(239,68,68,.4);padding:1px 6px;border-radius:10px;background:rgba(239,68,68,.08);white-space:nowrap">RETIRADA</span>':''}
           </div>
           <div class="shoe-brand" style="color:${isRetired?'var(--fa)':'var(--mu)'}">${s.brand_name||''} ${s.model_name||''}</div>
           <div class="shoe-bar-bg" style="max-width:none;width:100%"><div class="shoe-bar-fill" data-target="${isRetired?100:Math.round(km/maxKm*100)}" style="width:0%;background:${isRetired?'rgba(255,255,255,.12)':'var(--or)'}"></div></div>
@@ -616,6 +616,8 @@ async function selectAct(idx){
  
   // Fetch full activity detail (real splits, photos, comments)
   document.getElementById('det-hr-zones').innerHTML='';
+  const beEl=document.getElementById('det-best-efforts');
+  if(beEl) beEl.innerHTML='';
   showDetLoading(true);
   try{
     const [detail, photos, comments] = await Promise.all([
@@ -708,6 +710,40 @@ async function selectAct(idx){
     window._lastSplits=splits;
     window._lastDetail=detail;
     renderDetHRZones(splits, detail);
+ 
+    // Mejores tiempos (best efforts)
+    const beEl=document.getElementById('det-best-efforts');
+    if(beEl){
+      const efforts=detail.best_efforts||[];
+      if(efforts.length){
+        // Medal icons by position (PR=gold, 2nd=silver, 3rd=bronze)
+        const medalColor=pos=>pos===1?'#f59e0b':pos===2?'#9ca3af':pos===3?'#b45309':'#6b7280';
+        const medalLabel=pos=>pos===1?'PR':pos===2?'2º':pos===3?'3º':'';
+        beEl.innerHTML=`
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Mejores tiempos</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px">
+            ${efforts.map(e=>{
+              const pos=e.pr_rank||null;
+              const mc=medalColor(pos);
+              const ml=medalLabel(pos);
+              const secs=e.elapsed_time;
+              const distKm=(e.distance/1000).toFixed(e.distance<1000?0:1);
+              return `<div style="background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px">
+                <div style="width:32px;height:32px;border-radius:50%;background:${pos?mc+'22':'var(--s3)'};border:2px solid ${pos?mc:'var(--bd)'};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                  <span style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:${pos?mc:'var(--fa)'}">${ml||'—'}</span>
+                </div>
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:${pos?mc:'var(--tx)'}">${e.name}</div>
+                  <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--tx);margin-top:2px">${fmtTimeFull(secs)}</div>
+                  <div style="font-family:var(--font-mono);font-size:10px;color:var(--fa);margin-top:1px">${fmtPace(secs/(e.distance/1000))} min/km</div>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>`;
+      } else {
+        beEl.innerHTML='';
+      }
+    }
  
     // Photos - Strava returns urls as object with size keys
     const photoEl=document.getElementById('det-photos');

@@ -77,7 +77,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 .shoe-brand{font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-top:1px}
 .shoe-km{font-family:var(--font-mono);font-size:13px;font-weight:500;color:var(--or)}
 .shoe-bar-bg{height:3px;background:var(--s3);border-radius:2px;margin-top:5px;overflow:hidden;width:100%;max-width:160px}
-.shoe-bar-fill{height:100%;background:var(--or);border-radius:2px;transition:width 2s cubic-bezier(.1,1,.1,1),background .4s ease}
+.shoe-bar-fill{height:100%;background:var(--or);border-radius:2px;transition:width 3.5s cubic-bezier(.05,1,.1,1),background .4s ease}
 .race-card{background:linear-gradient(135deg,rgba(252,76,2,.1),rgba(252,76,2,.03));border:1px solid var(--or3);border-radius:14px;padding:1.25rem 1.5rem;margin-bottom:1rem}
 .race-label{font-family:var(--font-mono);font-size:10px;color:var(--or);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
 .race-name{font-size:1rem;font-weight:700}
@@ -304,7 +304,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 const CLIENT_ID='237317';
 const REDIRECT='https://ignaciodocesainz.github.io/Strava';
 // Cloudflare Worker URL — update this after deploying your worker
-const WORKER='https://strava.ignaciodocee.workers.dev';
+const WORKER='https://strava-proxy.YOUR-SUBDOMAIN.workers.dev';
 let activities=[],athlete={},gear=[],athleteZones=[];
 let filterType='all',resSportType='all',resYearType='year',prSportType='Run',pfSportType='Run';
 let mapDet=null;
@@ -821,7 +821,8 @@ function renderDetHRZones(splits, detail){
   const pcts=zoneSecs.map(s=>+(s/totalSecs*100).toFixed(1));
   pcts[pcts.indexOf(Math.max(...pcts))]+=100-Math.round(pcts.reduce((a,b)=>a+b,0));
  
-  const rows=zones.map((z,i)=>{
+  const rows=[...zones].reverse().map((z,ri)=>{
+    const i=zones.indexOf(z);
     const pct=pcts[i]; const secs=zoneSecs[i];
     return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
       <div style="width:52px;flex-shrink:0;font-family:var(--font-mono);font-size:11px;font-weight:600;color:${z.color}">Z${i+1}</div>
@@ -1184,39 +1185,62 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeRaceModal();});
 // ── SHOES RETIRE ───────────────────────────────
 function toggleRetire(id,btn){
   const retired=JSON.parse(localStorage.getItem('retired_shoes')||'[]');
-  const idx=retired.indexOf(id);
-  if(idx>=0){ retired.splice(idx,1); } else { retired.push(id); }
+  const isNowRetired=retired.indexOf(id)<0; // will become retired
+  if(isNowRetired){ retired.push(id); } else { retired.splice(retired.indexOf(id),1); }
   localStorage.setItem('retired_shoes',JSON.stringify(retired));
-  // Re-render shoes
+ 
+  // Update only the specific shoe element — no full re-render
+  const row=document.getElementById('shoe-'+id);
+  if(!row) return;
+ 
   const shoes=gear.length?gear:(athlete.shoes||[]);
-  const maxKm=1000; // fixed 1000km max for bar
-  const shoesEl=document.getElementById('pf-shoes');
-  const newRetired=JSON.parse(localStorage.getItem('retired_shoes')||'[]');
-  shoesEl.innerHTML=shoes.map(s=>{
-    const km=((s.distance||0)/1000).toFixed(0);
-    const isRetired=newRetired.includes(s.id);
-    const retiredStyle=isRetired?'background:rgba(239,68,68,.04);border:1px solid rgba(239,68,68,.15);border-radius:10px;padding:8px 6px;':'padding:8px 6px;border:1px solid transparent;border-radius:10px;';
-    return `<div class="shoe-row" id="shoe-${s.id}" style="${retiredStyle}">
-      <div class="shoe-l" style="flex:1;min-width:0">
-        <span style="font-size:20px;filter:${isRetired?'grayscale(1)':'none'};flex-shrink:0">${isRetired?'📦':'👟'}</span>
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <div class="shoe-name" style="color:${isRetired?'var(--mu)':'var(--tx)'}">${s.name||s.id||'Zapatilla'}</div>
-            ${isRetired?'<span style="font-family:var(--font-mono);font-size:9px;color:var(--red);border:1px solid rgba(239,68,68,.4);padding:1px 6px;border-radius:10px;background:rgba(239,68,68,.08);white-space:nowrap">RETIRADA</span>':''}
-          </div>
-          <div class="shoe-brand" style="color:${isRetired?'var(--fa)':'var(--mu)'}">${s.brand_name||''} ${s.model_name||''}</div>
-          <div class="shoe-bar-bg" style="max-width:none;width:100%"><div class="shoe-bar-fill" data-target="${isRetired?100:Math.round(km/maxKm*100)}" style="width:0%;background:${isRetired?'rgba(255,255,255,.12)':'var(--or)'}"></div></div>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:12px">
-        <div class="shoe-km" style="color:${isRetired?'var(--mu)':'var(--or)'}">${km}<span style="font-size:10px;color:var(--fa);margin-left:2px">km</span></div>
-        <button class="btn-retire ${isRetired?'retired':''}" onclick="toggleRetire('${s.id}',this)">
-          ${isRetired?'Reactivar':'Retirar'}
-        </button>
-      </div>
-    </div>`;
-  }).join('');
-  animateShoesBars();
+  const s=shoes.find(s=>s.id===id||s.id===parseInt(id));
+  if(!s) return;
+  const km=((s.distance||0)/1000).toFixed(0);
+ 
+  // Update styles
+  row.style.background=isNowRetired?'rgba(239,68,68,.04)':'transparent';
+  row.style.border=isNowRetired?'1px solid rgba(239,68,68,.15)':'1px solid transparent';
+ 
+  // Update icon
+  const icon=row.querySelector('.shoe-l>span');
+  if(icon){icon.textContent=isNowRetired?'📦':'👟';icon.style.filter=isNowRetired?'grayscale(1)':'none';}
+ 
+  // Update name color + retired badge
+  const nameEl=row.querySelector('.shoe-name');
+  if(nameEl){
+    nameEl.style.color=isNowRetired?'var(--mu)':'var(--tx)';
+    const badge=nameEl.nextElementSibling;
+    if(isNowRetired&&!badge?.classList?.contains('retired-badge')){
+      const sp=document.createElement('span');
+      sp.className='retired-badge';
+      sp.style.cssText='font-family:var(--font-mono);font-size:9px;color:var(--red);border:1px solid rgba(239,68,68,.4);padding:1px 6px;border-radius:10px;background:rgba(239,68,68,.08);white-space:nowrap';
+      sp.textContent='RETIRADA';
+      nameEl.after(sp);
+    } else if(!isNowRetired && badge?.classList?.contains('retired-badge')){
+      badge.remove();
+    }
+  }
+ 
+  // Update brand color
+  const brandEl=row.querySelector('.shoe-brand');
+  if(brandEl) brandEl.style.color=isNowRetired?'var(--fa)':'var(--mu)';
+ 
+  // Update km color
+  const kmEl=row.querySelector('.shoe-km');
+  if(kmEl) kmEl.style.color=isNowRetired?'var(--mu)':'var(--or)';
+ 
+  // Animate bar to new target
+  const barFill=row.querySelector('.shoe-bar-fill');
+  if(barFill){
+    const target=isNowRetired?100:Math.round(km/1000*100);
+    barFill.style.background=isNowRetired?'rgba(255,255,255,.12)':'var(--or)';
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{ barFill.style.width=target+'%'; }));
+  }
+ 
+  // Update button
+  btn.textContent=isNowRetired?'Reactivar':'Retirar';
+  btn.className='btn-retire'+(isNowRetired?' retired':'');
 }
 function hardReset(){
   try{localStorage.removeItem('strava_token');localStorage.removeItem('strava_athlete');}catch(e){}

@@ -621,7 +621,7 @@ async function selectAct(idx){
   showDetLoading(true);
   try{
     const [detail, photos, comments] = await Promise.all([
-      apiFetch(`/activities/${a.id}?include_all_efforts=false`),
+      apiFetch(`/activities/${a.id}?include_all_efforts=true`),
       apiFetch(`/activities/${a.id}/photos?size=600&photo_sources=true`).catch(()=>[]),
       apiFetch(`/activities/${a.id}/comments?page=1&per_page=20`).catch(()=>[]),
     ]);

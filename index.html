@@ -200,9 +200,9 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
           <button class="pill" onclick="pfSport('Swim',this)">🏊 Natación</button>
           <button class="pill" onclick="pfSport('all',this)">Todos</button>
         </div>
-        <div style="position:relative;height:220px"><canvas id="pf-chart"></canvas></div>
+        <div style="position:relative;height:220px;width:100%"><canvas id="pf-chart"></canvas></div>
       </div>
-      <div class="card">
+      <div class="card" style="contain:layout">
         <div class="card-title">zapatillas</div>
         <div id="pf-shoes"><div class="empty">Sin datos de zapatillas</div></div>
       </div>
@@ -216,10 +216,6 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
           <button class="sport-tab" onclick="resSport('Run',this)">🏃 Carrera</button>
           <button class="sport-tab" onclick="resSport('Ride',this)">🚴 Ciclismo</button>
           <button class="sport-tab" onclick="resSport('Swim',this)">🏊 Natación</button>
-        </div>
-        <div class="year-toggle">
-          <button class="yt-btn on" onclick="resYear('year',this)">Este año</button>
-          <button class="yt-btn" onclick="resYear('all',this)">Siempre</button>
         </div>
       </div>
       <div class="sg" id="res-stats"></div>
@@ -305,9 +301,9 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 const CLIENT_ID='237317';
 const REDIRECT='https://ignaciodocesainz.github.io/Strava';
 // Cloudflare Worker URL — update this after deploying your worker
-const WORKER='https://strava.ignaciodocee.workers.dev';
+const WORKER='https://strava-proxy.YOUR-SUBDOMAIN.workers.dev';
 let activities=[],athlete={},gear=[],athleteZones=[];
-let filterType='all',resSportType='all',resYearType='year',prSportType='Run',pfSportType='Run';
+let filterType='all',resSportType='all',prSportType='Run',pfSportType='Run';
 let mapDet=null;
  
 window.addEventListener('DOMContentLoaded',async()=>{
@@ -527,8 +523,6 @@ function drawPfChart(){
 // ══ RESUMEN ══
 function renderResumen(){
   const yr=new Date().getFullYear();
-  let pool=resYearType==='year'?activities.filter(a=>new Date(a.start_date).getFullYear()===yr):activities;
-  if(resSportType!=='all') pool=pool.filter(a=>a.type===resSportType);
   const{start:ws}=weekRange(new Date());
   const wkPool=(resSportType==='all'?activities:activities.filter(a=>a.type===resSportType)).filter(a=>new Date(a.start_date)>=ws);
   const wkKm=wkPool.reduce((s,a)=>s+a.distance/1000,0);
@@ -537,11 +531,11 @@ function renderResumen(){
   const allPool=resSportType==='all'?activities:activities.filter(a=>a.type===resSportType);
   const totKm=allPool.reduce((s,a)=>s+a.distance/1000,0);
   document.getElementById('res-stats').innerHTML=[
-    {l:'Esta semana', v:wkKm.toFixed(1),   u:'km', n:wkPool.length+' actividades'},
-    {l:'Este año',    v:yrKm.toFixed(0),   u:'km', n:yrPool.length+' actividades'},
-    {l:'Total',       v:totKm.toFixed(0),  u:'km', n:allPool.length+' actividades'},
-    {l:'Actividades', v:pool.length,        u:'',   n:resYearType==='year'?yr+'':'histórico'},
-  ].map(s=>`<div class="st"><div class="st-l">${s.l}</div><div class="st-v">${s.v}<em>${s.u}</em></div><div class="st-n">${s.n}</div></div>`).join('');
+    {l:'Esta semana', v:wkKm.toFixed(1),  u:'km', n:wkPool.length+' actividades'},
+    {l:'Este año',    v:yrKm.toFixed(0),  u:'km', n:yrPool.length+' actividades'},
+    {l:'Total',       v:totKm.toFixed(0), u:'km', n:allPool.length+' actividades'},
+    {l:'Actividades', v:yrPool.length+' / '+allPool.length, u:'', n:'este año / total'},
+  ].map(s=>`<div class="st"><div class="st-l">${s.l}</div><div class="st-v" style="font-size:${String(s.v).length>6?'16':'21'}px">${s.v}<em>${s.u}</em></div><div class="st-n">${s.n}</div></div>`).join('');
   const w10=last10Weeks();const lbs=w10.map(w=>w.label);
   mkChart('res-km','line',lbs,[{label:'km',data:w10.map(w=>+pool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+a.distance/1000,0).toFixed(1)),borderColor:'#FC4C02',backgroundColor:'rgba(252,76,2,.15)',fill:true,spanGaps:true}]);
   mkChart('res-elev','line',lbs,[{label:'m',data:w10.map(w=>Math.round(pool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+(a.total_elevation_gain||0),0))),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.15)',fill:true,spanGaps:true}]);
@@ -629,12 +623,16 @@ async function selectAct(idx){
     // Real splits from API
     const splits=detail.splits_metric||[];
     if(splits.length){
-      const paceData=splits.map(s=>{
-        if(!s.moving_time||s.moving_time<=0||!s.distance||s.distance<10) return null;
+      // Filter out last split if it's a very short partial (< 200m) with no meaningful pace
+      const validSplits=splits.filter((s,i)=>{
+        if(!s.moving_time||s.moving_time<=0||!s.distance||s.distance<10) return false;
+        // Last split: only include if distance >= 200m (has meaningful data)
+        if(i===splits.length-1 && s.distance<200) return false;
         const secsPerKm=Math.round(1000/(s.distance/s.moving_time));
-        return (secsPerKm>0&&secsPerKm<900)?secsPerKm:null;
-      }).filter(v=>v!==null);
-      const labels=splits.map((_,i)=>'km '+(i+1));
+        return secsPerKm>0&&secsPerKm<900;
+      });
+      const paceData=validSplits.map(s=>Math.round(1000/(s.distance/s.moving_time)));
+      const labels=validSplits.map((_,i)=>'km '+(i+1));
       const paceMin=Math.min(...paceData)-15, paceMax=Math.max(...paceData)+15;
       mkChart('det-pace','line',labels,[{
         label:'ritmo',data:paceData,borderColor:'#FC4C02',
@@ -643,9 +641,9 @@ async function selectAct(idx){
       }],{paceMargin:true,min:paceMin,max:paceMax,
         cbY:v=>{const m=Math.floor(v/60),s=Math.round(v%60);return m+':'+(s<10?'0':'')+s}});
  
-      // HR per split — use splits data if available, otherwise generate from avg HR
+      // HR per split — use validSplits to match pace chart
       const hrWrap=document.getElementById('det-hr-wrap');
-      const hrData=splits.map(s=>s.average_heartrate?Math.round(s.average_heartrate):null);
+      const hrData=validSplits.map(s=>s.average_heartrate?Math.round(s.average_heartrate):null);
       const hasHRData=hrData.some(v=>v!=null);
       if(hasHRData){
         hrWrap.innerHTML='<canvas id="det-hr"></canvas>';

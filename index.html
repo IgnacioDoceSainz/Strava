@@ -300,14 +300,12 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 <script>
 const CLIENT_ID='237317';
 const REDIRECT='https://ignaciodocesainz.github.io/Strava';
-// Cloudflare Worker URL — update this after deploying your worker
 const WORKER='https://strava.ignaciodocee.workers.dev';
 let activities=[],athlete={},gear=[],athleteZones=[];
 let filterType='all',resSportType='all',prSportType='Run',pfSportType='Run';
 let mapDet=null;
  
 window.addEventListener('DOMContentLoaded',async()=>{
-  // Show reset button after 5s if still loading
   const resetTimer=setTimeout(()=>{
     const btn=document.getElementById('reset-btn');
     if(btn) btn.style.display='block';
@@ -318,10 +316,8 @@ window.addEventListener('DOMContentLoaded',async()=>{
   const error=params.get('error');
  
   if(error){
-    clearTimeout(resetTimer);
-    hideLoading(); showAuth();
-    alert('Strava rechazó la conexión: '+error+'. Inténtalo de nuevo.');
-    return;
+    clearTimeout(resetTimer); hideLoading(); showAuth();
+    alert('Strava rechazó la conexión: '+error); return;
   }
  
   if(code){
@@ -329,38 +325,62 @@ window.addEventListener('DOMContentLoaded',async()=>{
     showLoading('Obteniendo token…');
     try{
       const res=await fetch(WORKER+'/token',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({code, redirect_uri: REDIRECT})
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({code, redirect_uri:REDIRECT})
       });
       const text=await res.text();
       let data;
       try{ data=JSON.parse(text); }catch(e){ throw new Error('Respuesta inválida: '+text.slice(0,100)); }
       if(!data.access_token) throw new Error(data.message||data.error||JSON.stringify(data));
-      localStorage.setItem('strava_token',data.access_token);
-      localStorage.setItem('strava_athlete',JSON.stringify(data.athlete||{}));
+      // Save token + refresh token + expiry
+      localStorage.setItem('strava_token',        data.access_token);
+      localStorage.setItem('strava_refresh_token', data.refresh_token||'');
+      localStorage.setItem('strava_expires_at',    data.expires_at||0);
+      localStorage.setItem('strava_athlete',       JSON.stringify(data.athlete||{}));
       clearTimeout(resetTimer);
-      await loadApp(data.access_token,data.athlete);
+      await loadApp(data.access_token, data.athlete);
     }catch(e){
-      clearTimeout(resetTimer);
-      hardReset();
-      alert('Error al conectar con Strava:\n'+e.message+'\n\nRevisa que el Client ID y Client Secret estén configurados en Netlify.');
+      clearTimeout(resetTimer); hardReset();
+      alert('Error al conectar:\n'+e.message);
     }
     return;
   }
-  const tok=localStorage.getItem('strava_token');
+ 
+  // Check saved token — refresh if expired
+  const tok         = localStorage.getItem('strava_token');
+  const expiresAt   = parseInt(localStorage.getItem('strava_expires_at')||'0');
+  const refreshToken= localStorage.getItem('strava_refresh_token');
+  const now         = Math.floor(Date.now()/1000);
+ 
   if(tok){
+    // If token expires in less than 10 minutes, refresh it
+    if(expiresAt && (expiresAt - now) < 600 && refreshToken){
+      showLoading('Renovando sesión…');
+      try{
+        const res=await fetch(WORKER+'/token',{
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({refresh_token:refreshToken})
+        });
+        const data=await res.json();
+        if(data.access_token){
+          localStorage.setItem('strava_token',         data.access_token);
+          localStorage.setItem('strava_refresh_token',  data.refresh_token||refreshToken);
+          localStorage.setItem('strava_expires_at',     data.expires_at||0);
+          clearTimeout(resetTimer);
+          await loadApp(data.access_token, JSON.parse(localStorage.getItem('strava_athlete')||'{}'));
+          return;
+        }
+      }catch(e){ /* fall through to use existing token */ }
+    }
     try{
-      await loadApp(tok,JSON.parse(localStorage.getItem('strava_athlete')||'{}'));
+      await loadApp(tok, JSON.parse(localStorage.getItem('strava_athlete')||'{}'));
       clearTimeout(resetTimer);
     }catch(e){
-      clearTimeout(resetTimer);
-      hardReset();
+      clearTimeout(resetTimer); hardReset();
     }
     return;
   }
-  clearTimeout(resetTimer);
-  hideLoading();showAuth();
+  clearTimeout(resetTimer); hideLoading(); showAuth();
 });
  
 function startOAuth(){
@@ -1277,7 +1297,12 @@ function toggleRetire(id,btn){
   btn.className='btn-retire'+(isNowRetired?' retired':'');
 }
 function hardReset(){
-  try{localStorage.removeItem('strava_token');localStorage.removeItem('strava_athlete');}catch(e){}
+  try{
+    localStorage.removeItem('strava_token');
+    localStorage.removeItem('strava_refresh_token');
+    localStorage.removeItem('strava_expires_at');
+    localStorage.removeItem('strava_athlete');
+  }catch(e){}
   activities=[];athlete={};gear=[];
   document.getElementById('loading').style.display='none';
   document.getElementById('screen-app').style.display='none';
@@ -1294,7 +1319,10 @@ function showAuth(){
   document.getElementById('screen-auth').style.display='flex';
 }
 function logout(){
-  localStorage.removeItem('strava_token');localStorage.removeItem('strava_athlete');
+  localStorage.removeItem('strava_token');
+  localStorage.removeItem('strava_refresh_token');
+  localStorage.removeItem('strava_expires_at');
+  localStorage.removeItem('strava_athlete');
   activities=[];athlete={};gear=[];
   if(mapDet){mapDet.remove();mapDet=null;}
   document.querySelectorAll('canvas').forEach(c=>{const ch=Chart.getChart(c);if(ch)ch.destroy();});

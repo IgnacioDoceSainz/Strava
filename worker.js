@@ -1,5 +1,13 @@
-const REDIRECT_URI = 'https://ignaciodocesainz.github.io/Strava';
+// ─────────────────────────────────────────────────────────────
+//  Strava Proxy — Cloudflare Worker
+//  Deploy at: dash.cloudflare.com → Workers → Create Worker
+//
+//  Set these environment variables in the Worker settings:
+//    STRAVA_CLIENT_ID     → 237317
+//    STRAVA_CLIENT_SECRET → your client secret
+// ─────────────────────────────────────────────────────────────
  
+const REDIRECT_URI = 'https://ignaciodocesainz.github.io/Strava/';
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, X-Strava-Token',
@@ -11,47 +19,26 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
  
+    // CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: CORS });
     }
  
-    // POST /token — exchange code OR refresh token
+    // POST /token — exchange code for access token
     if (request.method === 'POST' && url.pathname === '/token') {
-      let body = {};
-      try { body = await request.json(); } catch(e) {}
- 
-      const clientId     = env.CLIENT_ID;
-      const clientSecret = env.CLIENT_SECRET;
-      if (!clientId || !clientSecret) {
-        return new Response(JSON.stringify({ error: 'Missing CLIENT_ID or CLIENT_SECRET' }), { status: 500, headers: CORS });
-      }
- 
-      let payload;
-      if (body.refresh_token) {
-        // Refresh flow
-        payload = {
-          client_id:     clientId,
-          client_secret: clientSecret,
-          refresh_token: body.refresh_token,
-          grant_type:    'refresh_token',
-        };
-      } else if (body.code) {
-        // Authorization code flow
-        payload = {
-          client_id:     clientId,
-          client_secret: clientSecret,
-          code:          body.code,
-          grant_type:    'authorization_code',
-          redirect_uri:  REDIRECT_URI,
-        };
-      } else {
-        return new Response(JSON.stringify({ error: 'Missing code or refresh_token' }), { status: 400, headers: CORS });
-      }
+      const { code } = await request.json().catch(() => ({}));
+      if (!code) return json({ error: 'Missing code' }, 400);
  
       const res = await fetch('https://www.strava.com/oauth/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          client_id:     env.STRAVA_CLIENT_ID,
+          client_secret: env.STRAVA_CLIENT_SECRET,
+          code,
+          grant_type:    'authorization_code',
+          redirect_uri:  REDIRECT_URI,
+        }),
       });
       const data = await res.text();
       return new Response(data, { status: res.status, headers: CORS });
@@ -60,7 +47,7 @@ export default {
     // GET /api/* — proxy to Strava API
     if (request.method === 'GET' && url.pathname.startsWith('/api/')) {
       const token = request.headers.get('X-Strava-Token');
-      if (!token) return new Response(JSON.stringify({ error: 'No token' }), { status: 401, headers: CORS });
+      if (!token) return json({ error: 'No token' }, 401);
  
       const stravaPath = url.pathname.replace('/api', '');
       const stravaUrl  = 'https://www.strava.com/api/v3' + stravaPath + url.search;
@@ -72,7 +59,10 @@ export default {
       return new Response(data, { status: res.status, headers: CORS });
     }
  
-    return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: CORS });
-  }
+    return json({ error: 'Not found' }, 404);
+  },
 };
  
+function json(obj, status = 200) {
+  return new Response(JSON.stringify(obj), { status, headers: CORS });
+}

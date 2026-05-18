@@ -557,8 +557,8 @@ function renderResumen(){
     {l:'Actividades', v:yrPool.length+' / '+allPool.length, u:'', n:'este año / total'},
   ].map(s=>`<div class="st"><div class="st-l">${s.l}</div><div class="st-v" style="font-size:${String(s.v).length>6?'16':'21'}px">${s.v}<em>${s.u}</em></div><div class="st-n">${s.n}</div></div>`).join('');
   const w10=last10Weeks();const lbs=w10.map(w=>w.label);
-  mkChart('res-km','line',lbs,[{label:'km',data:w10.map(w=>+pool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+a.distance/1000,0).toFixed(1)),borderColor:'#FC4C02',backgroundColor:'rgba(252,76,2,.15)',fill:true,spanGaps:true}]);
-  mkChart('res-elev','line',lbs,[{label:'m',data:w10.map(w=>Math.round(pool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+(a.total_elevation_gain||0),0))),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.15)',fill:true,spanGaps:true}]);
+  mkChart('res-km','line',lbs,[{label:'km',data:w10.map(w=>+allPool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+a.distance/1000,0).toFixed(1)),borderColor:'#FC4C02',backgroundColor:'rgba(252,76,2,.15)',fill:true,spanGaps:true}]);
+  mkChart('res-elev','line',lbs,[{label:'m',data:w10.map(w=>Math.round(allPool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+(a.total_elevation_gain||0),0))),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.15)',fill:true,spanGaps:true}]);
   const wkA=activities.filter(a=>new Date(a.start_date)>=ws);
   document.getElementById('res-week').innerHTML=wkA.length?wkA.map(a=>actRowHtml(a,activities.indexOf(a))).join(''):'<div class="empty">Sin actividades esta semana</div>';
   const vDate=new Date('2026-12-06');const dLeft=Math.ceil((vDate-new Date())/86400000);

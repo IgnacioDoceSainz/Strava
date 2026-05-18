@@ -15,29 +15,43 @@ export default {
       return new Response(null, { status: 204, headers: CORS });
     }
  
-    // POST /token — exchange code for access token
+    // POST /token — exchange code OR refresh token
     if (request.method === 'POST' && url.pathname === '/token') {
-      let code;
-      try { const body = await request.json(); code = body.code; } catch(e) {}
-      if (!code) return new Response(JSON.stringify({ error: 'Missing code' }), { status: 400, headers: CORS });
+      let body = {};
+      try { body = await request.json(); } catch(e) {}
  
       const clientId     = env.CLIENT_ID;
       const clientSecret = env.CLIENT_SECRET;
- 
       if (!clientId || !clientSecret) {
-        return new Response(JSON.stringify({ error: 'Missing CLIENT_ID or CLIENT_SECRET in Cloudflare env variables' }), { status: 500, headers: CORS });
+        return new Response(JSON.stringify({ error: 'Missing CLIENT_ID or CLIENT_SECRET' }), { status: 500, headers: CORS });
+      }
+ 
+      let payload;
+      if (body.refresh_token) {
+        // Refresh flow
+        payload = {
+          client_id:     clientId,
+          client_secret: clientSecret,
+          refresh_token: body.refresh_token,
+          grant_type:    'refresh_token',
+        };
+      } else if (body.code) {
+        // Authorization code flow
+        payload = {
+          client_id:     clientId,
+          client_secret: clientSecret,
+          code:          body.code,
+          grant_type:    'authorization_code',
+          redirect_uri:  REDIRECT_URI,
+        };
+      } else {
+        return new Response(JSON.stringify({ error: 'Missing code or refresh_token' }), { status: 400, headers: CORS });
       }
  
       const res = await fetch('https://www.strava.com/oauth/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          client_id:     clientId,
-          client_secret: clientSecret,
-          code,
-          grant_type:    'authorization_code',
-          redirect_uri:  REDIRECT_URI,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.text();
       return new Response(data, { status: res.status, headers: CORS });

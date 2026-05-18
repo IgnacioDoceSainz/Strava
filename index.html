@@ -51,7 +51,6 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 .wrap{max-width:1000px;margin:0 auto;padding:2rem 1.5rem;flex:1}
 .panel{display:none;animation:fadeIn .25s ease}.panel.on{display:block}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-.card{background:var(--s1);border:1px solid var(--bd);border-radius:14px;padding:1.25rem 1.5rem;margin-bottom:1rem}
 .card-title{font-family:var(--font-mono);font-size:11px;color:var(--mu);letter-spacing:.06em;text-transform:uppercase;margin-bottom:1rem}
 .sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1rem}
 .st{background:var(--s2);border:1px solid var(--bd);border-radius:12px;padding:14px 16px}
@@ -78,6 +77,13 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 .shoe-km{font-family:var(--font-mono);font-size:13px;font-weight:500;color:var(--or)}
 .shoe-bar-bg{height:3px;background:var(--s3);border-radius:2px;margin-top:5px;overflow:hidden;width:100%;max-width:160px}
 .shoe-bar-fill{height:100%;background:var(--or);border-radius:2px;transition:width 3.5s cubic-bezier(.05,1,.1,1),background .4s ease}
+/* Prevent layout shifts when content changes */
+.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1rem;min-height:80px}
+.chart-fixed-220{position:relative;width:100%;height:220px;min-height:220px;flex-shrink:0}
+.chart-fixed-200{position:relative;width:100%;height:200px;min-height:200px;flex-shrink:0}
+.chart-fixed-180{position:relative;width:100%;height:180px;min-height:180px;flex-shrink:0}
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:14px;padding:1.1rem 1.25rem;margin-bottom:1rem;contain:layout}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start}
 .race-card{background:linear-gradient(135deg,rgba(252,76,2,.1),rgba(252,76,2,.03));border:1px solid var(--or3);border-radius:14px;padding:1.25rem 1.5rem;margin-bottom:1rem}
 .race-label{font-family:var(--font-mono);font-size:10px;color:var(--or);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
 .race-name{font-size:1rem;font-weight:700}
@@ -106,7 +112,6 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 .sport-tabs{display:flex;gap:6px;margin-bottom:1rem;flex-wrap:wrap}
 .sport-tab{font-family:var(--font-mono);font-size:11px;padding:5px 14px;border:1px solid var(--bd);border-radius:20px;cursor:pointer;color:var(--mu);background:transparent;transition:all .2s}
 .sport-tab:hover,.sport-tab.on{border-color:var(--or);color:var(--or);background:var(--or2)}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
 .pr-section{margin-bottom:1.5rem}
 .pr-sec-title{font-family:var(--font-mono);font-size:11px;color:var(--mu);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.75rem;padding-bottom:.5rem;border-bottom:1px solid var(--bd)}
 .pr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
@@ -189,7 +194,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
           <button class="pill" onclick="pfStatFilter('Ride',this)">🚴 Ciclismo</button>
           <button class="pill" onclick="pfStatFilter('Swim',this)">🏊 Natación</button>
         </div>
-        <div class="sg" id="pf-stats"></div>
+        <div class="sg" style="min-height:90px" id="pf-stats"></div>
       </div>
       <div id="pf-race"></div>
       <div class="card">
@@ -220,8 +225,8 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
       </div>
       <div class="sg" id="res-stats"></div>
       <div class="two-col">
-        <div class="card"><div class="card-title">km · últimas 10 semanas</div><div style="position:relative;height:180px"><canvas id="res-km"></canvas></div></div>
-        <div class="card"><div class="card-title">elevación · últimas 10 semanas (m)</div><div style="position:relative;height:180px"><canvas id="res-elev"></canvas></div></div>
+        <div class="card"><div class="card-title">km · últimas 10 semanas</div><div class="chart-fixed-180"><canvas id="res-km"></canvas></div></div>
+        <div class="card"><div class="card-title">elevación · últimas 10 semanas (m)</div><div class="chart-fixed-180"><canvas id="res-elev"></canvas></div></div>
       </div>
       <div class="card"><div class="card-title">actividades esta semana</div><div id="res-week"></div></div>
       <div id="res-race"></div>
@@ -244,7 +249,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
           <div class="map-box" id="det-map"></div>
           <div id="det-photos" style="margin-bottom:1rem"></div>
           <div class="two-col" style="margin-top:0">
-            <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:.75rem">RITMO POR KM</div><div style="position:relative;height:160px"><canvas id="det-pace"></canvas></div></div>
+            <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:.75rem">RITMO POR KM</div><div style="position:relative;height:160px;min-height:160px;flex-shrink:0"><canvas id="det-pace"></canvas></div></div>
             <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:.75rem">FRECUENCIA CARDÍACA</div><div style="position:relative;height:160px" id="det-hr-wrap"><canvas id="det-hr"></canvas></div></div>
           </div>
           <div id="det-hr-zones" style="margin-top:1rem"></div>

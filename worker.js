@@ -7,7 +7,7 @@
 //    STRAVA_CLIENT_SECRET → your client secret
 // ─────────────────────────────────────────────────────────────
  
-const REDIRECT_URI = 'https://ignaciodocesainz.github.io/Strava/';
+const REDIRECT_URI = 'https://ignaciodocesainz.github.io/Strava';
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, X-Strava-Token',
@@ -66,3 +66,4 @@ export default {
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), { status, headers: CORS });
 }
+ 

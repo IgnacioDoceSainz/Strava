@@ -205,7 +205,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
           <button class="pill" onclick="pfSport('Swim',this)">🏊 Natación</button>
           <button class="pill" onclick="pfSport('all',this)">Todos</button>
         </div>
-        <div class="chart-fixed-220"><canvas id="pf-chart"></canvas></div>
+        <div class="chart-fixed-220 pf-chart-wrap"><canvas id="pf-chart"></canvas></div>
       </div>
       <div class="card" style="contain:layout">
         <div class="card-title">zapatillas</div>
@@ -225,8 +225,8 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
       </div>
       <div class="sg" id="res-stats"></div>
       <div class="two-col">
-        <div class="card"><div class="card-title">km · últimas 10 semanas</div><div class="chart-fixed-180"><canvas id="res-km"></canvas></div></div>
-        <div class="card"><div class="card-title">elevación · últimas 10 semanas (m)</div><div class="chart-fixed-180"><canvas id="res-elev"></canvas></div></div>
+        <div class="card"><div class="card-title">km · últimas 10 semanas</div><div class="chart-fixed-180 res-km-wrap"><canvas id="res-km"></canvas></div></div>
+        <div class="card"><div class="card-title">elevación · últimas 10 semanas (m)</div><div class="chart-fixed-180 res-elev-wrap"><canvas id="res-elev"></canvas></div></div>
       </div>
       <div class="card"><div class="card-title">actividades esta semana</div><div id="res-week"></div></div>
       <div id="res-race"></div>
@@ -540,7 +540,24 @@ function drawPfChart(){
     return{label:l,data:w10.map(w=>+activities.filter(a=>a.type===k&&new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+a.distance/1000,0).toFixed(1)),
     borderColor:c,backgroundColor:c+'22',fill:pfSportType!=='all',tension:.3,spanGaps:true};
   });
-  mkChart('pf-chart','line',lbs,datasets);
+  // Destroy existing chart first
+  const existing=Chart.getChart('pf-chart');
+  if(existing) existing.destroy();
+  // Recreate canvas to prevent resize artifacts
+  const wrap=document.querySelector('.pf-chart-wrap');
+  if(wrap){
+    wrap.innerHTML='<canvas id="pf-chart"></canvas>';
+  }
+  const c=document.getElementById('pf-chart');
+  if(!c) return;
+  const tk={ticks:{color:'#555',font:{size:10,family:'DM Mono'}},grid:{color:'rgba(255,255,255,.04)'}};
+  const ds=datasets.map(d=>({...d,borderWidth:1.5,pointRadius:3,pointHoverRadius:5,pointBorderWidth:1.5,pointBackgroundColor:d.borderColor}));
+  new Chart(c,{type:'line',data:{labels:lbs,datasets:ds},options:{
+    responsive:true,maintainAspectRatio:false,
+    animation:{duration:200},
+    plugins:{legend:{display:false}},
+    scales:{x:tk,y:{...tk,min:0}}
+  }});
 }
 // ══ RESUMEN ══
 function renderResumen(){
@@ -558,6 +575,12 @@ function renderResumen(){
     {l:'Total',       v:totKm.toFixed(0), u:'km', n:allPool.length+' actividades'},
     {l:'Actividades', v:yrPool.length+' / '+allPool.length, u:'', n:'este año / total'},
   ].map(s=>`<div class="st"><div class="st-l">${s.l}</div><div class="st-v" style="font-size:${String(s.v).length>6?'16':'21'}px">${s.v}<em>${s.u}</em></div><div class="st-n">${s.n}</div></div>`).join('');
+  // Recreate canvases to prevent resize artifacts
+  const resKmWrap=document.querySelector('.res-km-wrap');
+  const resElevWrap=document.querySelector('.res-elev-wrap');
+  if(resKmWrap) resKmWrap.innerHTML='<canvas id="res-km"></canvas>';
+  if(resElevWrap) resElevWrap.innerHTML='<canvas id="res-elev"></canvas>';
+ 
   const w10=last10Weeks();const lbs=w10.map(w=>w.label);
   mkChart('res-km','line',lbs,[{label:'km',data:w10.map(w=>+allPool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+a.distance/1000,0).toFixed(1)),borderColor:'#FC4C02',backgroundColor:'rgba(252,76,2,.15)',fill:true,spanGaps:true}]);
   mkChart('res-elev','line',lbs,[{label:'m',data:w10.map(w=>Math.round(allPool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+(a.total_elevation_gain||0),0))),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.15)',fill:true,spanGaps:true}]);

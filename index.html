@@ -79,9 +79,9 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 .shoe-bar-fill{height:100%;background:var(--or);border-radius:2px;transition:width 3.5s cubic-bezier(.05,1,.1,1),background .4s ease}
 /* Prevent layout shifts when content changes */
 .sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1rem;min-height:80px}
-.chart-fixed-220{position:relative;width:100%;height:220px;min-height:220px;flex-shrink:0}
-.chart-fixed-200{position:relative;width:100%;height:200px;min-height:200px;flex-shrink:0}
-.chart-fixed-180{position:relative;width:100%;height:180px;min-height:180px;flex-shrink:0}
+.chart-fixed-220{position:relative;width:100%;height:220px;min-height:220px;max-height:220px;overflow:hidden;flex-shrink:0}
+.chart-fixed-200{position:relative;width:100%;height:200px;min-height:200px;max-height:200px;overflow:hidden;flex-shrink:0}
+.chart-fixed-180{position:relative;width:100%;height:180px;min-height:180px;max-height:180px;overflow:hidden;flex-shrink:0}
 .card{background:var(--s1);border:1px solid var(--bd);border-radius:14px;padding:1.1rem 1.25rem;margin-bottom:1rem;contain:layout}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start}
 .race-card{background:linear-gradient(135deg,rgba(252,76,2,.1),rgba(252,76,2,.03));border:1px solid var(--or3);border-radius:14px;padding:1.25rem 1.5rem;margin-bottom:1rem}
@@ -205,7 +205,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
           <button class="pill" onclick="pfSport('Swim',this)">🏊 Natación</button>
           <button class="pill" onclick="pfSport('all',this)">Todos</button>
         </div>
-        <div style="position:relative;height:220px;width:100%"><canvas id="pf-chart"></canvas></div>
+        <div class="chart-fixed-220"><canvas id="pf-chart"></canvas></div>
       </div>
       <div class="card" style="contain:layout">
         <div class="card-title">zapatillas</div>
@@ -460,11 +460,7 @@ function renderPerfil(){
   const yr=new Date().getFullYear();
   const yrActs=activities.filter(a=>new Date(a.start_date).getFullYear()===yr);
   const yrKm=yrActs.reduce((s,a)=>s+a.distance/1000,0);
-  document.getElementById('pf-badges').innerHTML=[
-    `<span class="badge or">${yr}</span>`,
-    `<span class="badge">${yrActs.length} actividades</span>`,
-    `<span class="badge">${yrKm.toFixed(0)} km este año</span>`,
-  ].join('');
+  document.getElementById('pf-badges').innerHTML='';
   const valenciaDate=new Date('2026-12-06');const daysLeft=Math.ceil((valenciaDate-new Date())/86400000);
   document.getElementById('pf-race').innerHTML=`<div class="race-card" onclick="openRaceModal()" style="cursor:pointer;transition:opacity .2s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'"><div style="display:flex;align-items:center;justify-content:space-between;gap:1rem"><div><div class="race-label">📅 Próxima carrera — click para más info</div><div class="race-name">Maratón de Valencia 2026</div><div class="race-meta">6 de diciembre 2026 · Valencia, España · 42.195 km</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:2rem;font-weight:800;color:var(--or);letter-spacing:-.04em;line-height:1">${daysLeft}</div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-top:2px">días</div></div></div></div>`;
   pfStatSport='all'; drawPfStats();
@@ -621,7 +617,6 @@ async function selectAct(idx){
     {l:'Tiempo',        v:fmtTime(displayTime),                       u:''},
     {l:'Tiempo mov.',   v:fmtTime(a.moving_time),                     u:''},
     {l:'Ritmo',         v:pace,                                       u:'min/km'},
-    {l:'Velocidad',     v:a.average_speed?(a.average_speed*3.6).toFixed(1):'—', u:'km/h'},
     {l:'Elevación',     v:'↑'+(a.total_elevation_gain||0),            u:'m'},
     {l:'FC promedio',   v:a.average_heartrate?Math.round(a.average_heartrate):'—', u:'bpm'},
     {l:'FC máxima',     v:a.max_heartrate?Math.round(a.max_heartrate):'—',         u:'bpm'},
@@ -1201,13 +1196,16 @@ function mkChart(id,type,labels,datasets,extra={}){
   const c=document.getElementById(id);if(!c)return;
   const ex=Chart.getChart(c);if(ex)ex.destroy();
   const tk={ticks:{color:'#555',font:{size:10,family:'DM Mono'}},grid:{color:'rgba(255,255,255,.04)'}};
-  // Force line charts to always show points, with thin lines
   const ds=datasets.map(d=>type==='line'?{...d,borderWidth:1.5,pointRadius:3,pointHoverRadius:5,pointBorderWidth:1.5,pointBackgroundColor:d.borderColor,tension:.3}:d);
-  // min:0 by default unless paceMargin or explicit min set
   const yMin=extra.paceMargin?extra.min:(extra.min!=null?extra.min:0);
   const yExtra=yMin!=null?{min:yMin}:{};
-  new Chart(c,{type,data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-    scales:{x:tk,y:{...tk,...yExtra,...(extra.max!=null?{max:extra.max}:{}),...(extra.cbY?{ticks:{...tk.ticks,callback:extra.cbY}}:{})}}}});
+  new Chart(c,{type,data:{labels,datasets:ds},options:{
+    responsive:true,
+    maintainAspectRatio:false,
+    animation:{duration:300},
+    plugins:{legend:{display:false}},
+    scales:{x:tk,y:{...tk,...yExtra,...(extra.max!=null?{max:extra.max}:{}),...(extra.cbY?{ticks:{...tk.ticks,callback:extra.cbY}}:{})}}
+  }});
 }
 // ── RACE MODAL ─────────────────────────────────
 let raceMap=null;

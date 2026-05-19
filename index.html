@@ -48,12 +48,12 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 .nav{display:flex}
 .nav-tab{padding:12px 28px;font-size:13px;font-weight:600;color:var(--mu);cursor:pointer;border-bottom:2px solid transparent;letter-spacing:.04em;transition:color .2s;white-space:nowrap}
 .nav-tab:hover{color:var(--tx)}.nav-tab.on{color:var(--or);border-bottom-color:var(--or)}
-.wrap{max-width:1000px;margin:0 auto;padding:2rem 1.5rem;flex:1}
+.wrap{max-width:1000px;margin:0 auto;padding:2rem 1.5rem;flex:1;overflow-x:hidden}
 .panel{display:none;animation:fadeIn .25s ease}.panel.on{display:block}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 .card-title{font-family:var(--font-mono);font-size:11px;color:var(--mu);letter-spacing:.06em;text-transform:uppercase;margin-bottom:1rem}
-.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1rem}
-.st{background:var(--s2);border:1px solid var(--bd);border-radius:12px;padding:14px 16px}
+.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1rem;min-height:90px}
+.st{background:var(--s2);border:1px solid var(--bd);border-radius:12px;padding:14px 16px;min-height:82px}
 .st-l{font-family:var(--font-mono);font-size:10px;color:var(--mu);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}
 .st-v{font-size:22px;font-weight:700;line-height:1;letter-spacing:-.02em}
 .st-v em{font-size:12px;font-weight:400;color:var(--mu);font-style:normal;margin-left:2px;font-family:var(--font-mono)}
@@ -103,14 +103,14 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 .det-stat-v{font-size:18px;font-weight:700;letter-spacing:-.02em}
 .det-stat-v em{font-size:11px;color:var(--mu);font-style:normal;font-family:var(--font-mono);margin-left:2px}
 .map-box{height:300px;border-radius:12px;overflow:hidden;border:1px solid var(--bd);margin-bottom:1rem}
-.pills{display:flex;gap:6px;margin-bottom:1rem;flex-wrap:wrap}
-.pill{font-family:var(--font-mono);font-size:11px;padding:5px 14px;border:1px solid var(--bd);border-radius:20px;cursor:pointer;color:var(--mu);background:transparent;transition:all .2s}
+.pills{display:flex;gap:6px;margin-bottom:1rem;flex-wrap:wrap;min-height:34px;align-items:center}
+.pill{font-family:var(--font-mono);font-size:11px;padding:5px 14px;border:1px solid var(--bd);border-radius:20px;cursor:pointer;color:var(--mu);background:transparent;transition:border-color .2s,color .2s,background .2s;white-space:nowrap}
 .pill:hover,.pill.on{border-color:var(--or);color:var(--or);background:var(--or2)}
 .year-toggle{display:flex;border:1px solid var(--bd);border-radius:8px;overflow:hidden;width:fit-content;margin-bottom:1rem}
 .yt-btn{font-family:var(--font-mono);font-size:11px;padding:6px 16px;background:transparent;border:none;color:var(--mu);cursor:pointer;transition:all .2s}
 .yt-btn.on{background:var(--or);color:#fff}
-.sport-tabs{display:flex;gap:6px;margin-bottom:1rem;flex-wrap:wrap}
-.sport-tab{font-family:var(--font-mono);font-size:11px;padding:5px 14px;border:1px solid var(--bd);border-radius:20px;cursor:pointer;color:var(--mu);background:transparent;transition:all .2s}
+.sport-tabs{display:flex;gap:6px;margin-bottom:1rem;flex-wrap:wrap;min-height:34px;align-items:center}
+.sport-tab{font-family:var(--font-mono);font-size:11px;padding:5px 14px;border:1px solid var(--bd);border-radius:20px;cursor:pointer;color:var(--mu);background:transparent;transition:border-color .2s,color .2s,background .2s;white-space:nowrap}
 .sport-tab:hover,.sport-tab.on{border-color:var(--or);color:var(--or);background:var(--or2)}
 .pr-section{margin-bottom:1.5rem}
 .pr-sec-title{font-family:var(--font-mono);font-size:11px;color:var(--mu);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.75rem;padding-bottom:.5rem;border-bottom:1px solid var(--bd)}
@@ -520,17 +520,18 @@ function drawPfStats(){
   const yr=new Date().getFullYear();
   const{start:ws}=weekRange(new Date());
   let pool=pfStatSport==='all'?activities:activities.filter(a=>a.type===pfStatSport);
+  const allPool=pfStatSport==='all'?activities:activities.filter(a=>a.type===pfStatSport);
   const wkActs=pool.filter(a=>new Date(a.start_date)>=ws);
   const wkKm=wkActs.reduce((s,a)=>s+a.distance/1000,0);
   const yrActs=pool.filter(a=>new Date(a.start_date).getFullYear()===yr);
   const yrKm=yrActs.reduce((s,a)=>s+a.distance/1000,0);
   const totKm=pool.reduce((s,a)=>s+a.distance/1000,0);
   document.getElementById('pf-stats').innerHTML=[
-    {l:'Esta semana', v:wkKm.toFixed(1),   u:'km', n:wkActs.length+' actividades'},
-    {l:'Este año',    v:yrKm.toFixed(0),   u:'km', n:yrActs.length+' actividades'},
-    {l:'Total',       v:totKm.toFixed(0),  u:'km', n:pool.length+' actividades'},
-    {l:'Actividades', v:pool.length,        u:'',   n:'registradas'},
-  ].map(s=>`<div class="st"><div class="st-l">${s.l}</div><div class="st-v">${s.v}<em>${s.u}</em></div><div class="st-n">${s.n}</div></div>`).join('');
+    {l:'Esta semana', v:wkKm.toFixed(1),                      u:'km', n:wkActs.length+' actividades'},
+    {l:'Este año',    v:yrKm.toFixed(0),                      u:'km', n:yrActs.length+' actividades'},
+    {l:'Total',       v:totKm.toFixed(0),                     u:'km', n:pool.length+' actividades'},
+    {l:'Actividades', v:yrActs.length+' / '+allPool.length,   u:'',   n:'este año / total'},
+  ].map(s=>`<div class="st"><div class="st-l">${s.l}</div><div class="st-v" style="font-size:${String(s.v).length>6?'16':'21'}px">${s.v}<em>${s.u}</em></div><div class="st-n">${s.n}</div></div>`).join('');
 }
  
 function pfSport(t,el){pfSportType=t;document.querySelectorAll('#pf-sport-pills .pill').forEach(p=>p.classList.remove('on'));el.classList.add('on');drawPfChart();}

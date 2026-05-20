@@ -401,21 +401,47 @@ function startOAuth(){
 async function loadApp(token,savedAth){
   showLoading('Cargando actividades…');
   try{
+    // Use cached activities if less than 30 min old
+    const cachedActs=localStorage.getItem('strava_activities');
+    const cachedTime=parseInt(localStorage.getItem('strava_activities_time')||'0');
+    const now=Math.floor(Date.now()/1000);
+    const useCache=cachedActs&&(now-cachedTime)<1800;
+ 
     const [ath,acts,zones]=await Promise.all([
-      apiFetch('/athlete',token),
-      apiFetch('/athlete/activities?per_page=100&page=1',token),
-      apiFetch('/athlete/zones',token).catch(()=>null),
+      savedAth?.id?Promise.resolve(savedAth):apiFetch('/athlete',token),
+      useCache?Promise.resolve(JSON.parse(cachedActs)):apiFetch('/athlete/activities?per_page=100&page=1',token),
+      athleteZones.length?Promise.resolve(null):apiFetch('/athlete/zones',token).catch(()=>null),
     ]);
     athlete=ath; activities=acts;
-    // Store Strava HR zones globally — heart_rate.zones array, Z1=index 0 (lowest)
     if(zones?.heart_rate?.zones) athleteZones=zones.heart_rate.zones;
-    if(ath.shoes?.length){
+ 
+    // Cache activities
+    if(!useCache){
+      try{
+        localStorage.setItem('strava_activities',JSON.stringify(acts));
+        localStorage.setItem('strava_activities_time',String(now));
+      }catch(e){}
+    }
+ 
+    // Load gear only if not cached
+    const cachedGear=localStorage.getItem('strava_gear');
+    if(cachedGear){
+      gear=JSON.parse(cachedGear);
+    } else if(ath.shoes?.length){
       gear=await Promise.all(ath.shoes.map(s=>apiFetch('/gear/'+s.id,token).catch(()=>s)));
+      try{localStorage.setItem('strava_gear',JSON.stringify(gear));}catch(e){}
     } else { gear=[]; }
+ 
     localStorage.setItem('strava_athlete',JSON.stringify(ath));
     hideLoading(); showApp();
   }catch(e){
     console.error('loadApp error:',e);
+    if(e.message&&e.message.includes('429')){
+      hideLoading();
+      document.getElementById('screen-auth').style.display='flex';
+      alert('Límite de Strava alcanzado. Espera 15 minutos e inténtalo de nuevo.');
+      return;
+    }
     hardReset();
   }
 }
@@ -1329,6 +1355,9 @@ function hardReset(){
     localStorage.removeItem('strava_refresh_token');
     localStorage.removeItem('strava_expires_at');
     localStorage.removeItem('strava_athlete');
+    localStorage.removeItem('strava_activities');
+    localStorage.removeItem('strava_activities_time');
+    localStorage.removeItem('strava_gear');
   }catch(e){}
   activities=[];athlete={};gear=[];
   document.getElementById('loading').style.display='none';
@@ -1350,6 +1379,9 @@ function logout(){
   localStorage.removeItem('strava_refresh_token');
   localStorage.removeItem('strava_expires_at');
   localStorage.removeItem('strava_athlete');
+  localStorage.removeItem('strava_activities');
+  localStorage.removeItem('strava_activities_time');
+  localStorage.removeItem('strava_gear');
   activities=[];athlete={};gear=[];
   if(mapDet){mapDet.remove();mapDet=null;}
   document.querySelectorAll('canvas').forEach(c=>{const ch=Chart.getChart(c);if(ch)ch.destroy();});

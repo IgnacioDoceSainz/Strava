@@ -228,6 +228,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
         <div class="card"><div class="card-title">km · últimas 10 semanas</div><div class="chart-fixed-180 res-km-wrap"><canvas id="res-km"></canvas></div></div>
         <div class="card"><div class="card-title">elevación · últimas 10 semanas (m)</div><div class="chart-fixed-180 res-elev-wrap"><canvas id="res-elev"></canvas></div></div>
       </div>
+      <div class="card"><div class="card-title">FC promedio · últimas 10 semanas</div><div class="chart-fixed-180 res-hr-wrap"><canvas id="res-hr"></canvas></div></div>
       <div class="card"><div class="card-title">actividades esta semana</div><div id="res-week"></div></div>
       <div id="res-race"></div>
     </div>
@@ -307,6 +308,8 @@ const CLIENT_ID='237317';
 const REDIRECT='https://ignaciodocesainz.github.io/Strava';
 const WORKER='https://strava.ignaciodocee.workers.dev';
 let activities=[],athlete={},gear=[],athleteZones=[];
+// Restore cached zones immediately
+try{const cz=localStorage.getItem('strava_zones');if(cz)athleteZones=JSON.parse(cz);}catch(e){}
 let filterType='all',resSportType='all',prSportType='Run',pfSportType='Run';
 let mapDet=null;
  
@@ -410,10 +413,14 @@ async function loadApp(token,savedAth){
     const [ath,acts,zones]=await Promise.all([
       savedAth?.id?Promise.resolve(savedAth):apiFetch('/athlete',token),
       useCache?Promise.resolve(JSON.parse(cachedActs)):apiFetch('/athlete/activities?per_page=100&page=1',token),
-      athleteZones.length?Promise.resolve(null):apiFetch('/athlete/zones',token).catch(()=>null),
+      apiFetch('/athlete/zones',token).catch(()=>null), // always fetch fresh zones
     ]);
     athlete=ath; activities=acts;
     if(zones?.heart_rate?.zones) athleteZones=zones.heart_rate.zones;
+    // Cache zones too
+    if(zones?.heart_rate?.zones){
+      try{localStorage.setItem('strava_zones',JSON.stringify(zones.heart_rate.zones));}catch(e){}
+    }
  
     // Cache activities
     if(!useCache){
@@ -423,11 +430,8 @@ async function loadApp(token,savedAth){
       }catch(e){}
     }
  
-    // Load gear only if not cached
-    const cachedGear=localStorage.getItem('strava_gear');
-    if(cachedGear){
-      gear=JSON.parse(cachedGear);
-    } else if(ath.shoes?.length){
+    // Load gear — always fetch fresh (ignore bad cache)
+    if(ath.shoes?.length){
       gear=await Promise.all(ath.shoes.map(s=>apiFetch('/gear/'+s.id,token).catch(()=>s)));
       try{localStorage.setItem('strava_gear',JSON.stringify(gear));}catch(e){}
     } else { gear=[]; }
@@ -610,6 +614,23 @@ function renderResumen(){
   const w10=last10Weeks();const lbs=w10.map(w=>w.label);
   mkChart('res-km','line',lbs,[{label:'km',data:w10.map(w=>+allPool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+a.distance/1000,0).toFixed(1)),borderColor:'#FC4C02',backgroundColor:'rgba(252,76,2,.15)',fill:true,spanGaps:true}]);
   mkChart('res-elev','line',lbs,[{label:'m',data:w10.map(w=>Math.round(allPool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+(a.total_elevation_gain||0),0))),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.15)',fill:true,spanGaps:true}]);
+  // FC promedio semanal
+  const resHrWrap=document.querySelector('.res-hr-wrap');
+  if(resHrWrap) resHrWrap.innerHTML='<canvas id="res-hr"></canvas>';
+  const hrWeekData=w10.map(w=>{
+    const wkActs=allPool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end&&a.average_heartrate);
+    if(!wkActs.length) return null;
+    return Math.round(wkActs.reduce((s,a)=>s+a.average_heartrate,0)/wkActs.length);
+  });
+  if(hrWeekData.some(v=>v)){
+    mkChart('res-hr','line',lbs,[{
+      label:'FC',data:hrWeekData,borderColor:'#ef4444',
+      backgroundColor:'rgba(239,68,68,.1)',fill:true,spanGaps:true
+    }],{min:Math.min(...hrWeekData.filter(Boolean))-10});
+  } else if(resHrWrap){
+    resHrWrap.innerHTML='<div class="empty" style="height:180px;display:flex;align-items:center;justify-content:center">Sin datos de FC esta semanas</div>';
+  }
+ 
   const wkA=activities.filter(a=>new Date(a.start_date)>=ws);
   document.getElementById('res-week').innerHTML=wkA.length?wkA.map(a=>actRowHtml(a,activities.indexOf(a))).join(''):'<div class="empty">Sin actividades esta semana</div>';
   const vDate=new Date('2026-12-06');const dLeft=Math.ceil((vDate-new Date())/86400000);
@@ -1358,6 +1379,7 @@ function hardReset(){
     localStorage.removeItem('strava_activities');
     localStorage.removeItem('strava_activities_time');
     localStorage.removeItem('strava_gear');
+    localStorage.removeItem('strava_zones');
   }catch(e){}
   activities=[];athlete={};gear=[];
   document.getElementById('loading').style.display='none';
@@ -1382,6 +1404,7 @@ function logout(){
   localStorage.removeItem('strava_activities');
   localStorage.removeItem('strava_activities_time');
   localStorage.removeItem('strava_gear');
+  localStorage.removeItem('strava_zones');
   activities=[];athlete={};gear=[];
   if(mapDet){mapDet.remove();mapDet=null;}
   document.querySelectorAll('canvas').forEach(c=>{const ch=Chart.getChart(c);if(ch)ch.destroy();});

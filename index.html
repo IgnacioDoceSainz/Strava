@@ -411,13 +411,12 @@ async function loadApp(token,savedAth){
     const useCache=cachedActs&&(now-cachedTime)<1800;
  
     const [ath,acts,zones]=await Promise.all([
-      savedAth?.id?Promise.resolve(savedAth):apiFetch('/athlete',token),
+      apiFetch('/athlete',token), // always fresh — cached athlete loses shoes
       useCache?Promise.resolve(JSON.parse(cachedActs)):apiFetch('/athlete/activities?per_page=100&page=1',token),
-      apiFetch('/athlete/zones',token).catch(()=>null), // always fetch fresh zones
+      apiFetch('/athlete/zones',token).catch(()=>null),
     ]);
     athlete=ath; activities=acts;
     if(zones?.heart_rate?.zones) athleteZones=zones.heart_rate.zones;
-    // Cache zones too
     if(zones?.heart_rate?.zones){
       try{localStorage.setItem('strava_zones',JSON.stringify(zones.heart_rate.zones));}catch(e){}
     }
@@ -430,11 +429,19 @@ async function loadApp(token,savedAth){
       }catch(e){}
     }
  
-    // Load gear — always fetch fresh (ignore bad cache)
+    // Use shoes directly from athlete — no need to fetch /gear/{id} for basic info
     if(ath.shoes?.length){
-      gear=await Promise.all(ath.shoes.map(s=>apiFetch('/gear/'+s.id,token).catch(()=>s)));
+      // Try to get detailed gear info, but fall back to basic shoes data
+      try{
+        gear=await Promise.all(ath.shoes.map(s=>apiFetch('/gear/'+s.id,token).catch(()=>s)));
+      }catch(e){
+        gear=ath.shoes;
+      }
       try{localStorage.setItem('strava_gear',JSON.stringify(gear));}catch(e){}
-    } else { gear=[]; }
+    } else {
+      // shoes may not be in cached athlete — use raw response
+      gear=[];
+    }
  
     localStorage.setItem('strava_athlete',JSON.stringify(ath));
     hideLoading(); showApp();

@@ -614,21 +614,66 @@ function renderResumen(){
   const w10=last10Weeks();const lbs=w10.map(w=>w.label);
   mkChart('res-km','line',lbs,[{label:'km',data:w10.map(w=>+allPool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+a.distance/1000,0).toFixed(1)),borderColor:'#FC4C02',backgroundColor:'rgba(252,76,2,.15)',fill:true,spanGaps:true}]);
   mkChart('res-elev','line',lbs,[{label:'m',data:w10.map(w=>Math.round(allPool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+(a.total_elevation_gain||0),0))),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.15)',fill:true,spanGaps:true}]);
-  // FC promedio semanal
+  // FC por zonas semanal — stacked bars
   const resHrWrap=document.querySelector('.res-hr-wrap');
-  if(resHrWrap) resHrWrap.innerHTML='<canvas id="res-hr"></canvas>';
-  const hrWeekData=w10.map(w=>{
-    const wkActs=allPool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end&&a.average_heartrate);
-    if(!wkActs.length) return null;
-    return Math.round(wkActs.reduce((s,a)=>s+a.average_heartrate,0)/wkActs.length);
-  });
-  if(hrWeekData.some(v=>v)){
-    mkChart('res-hr','line',lbs,[{
-      label:'FC',data:hrWeekData,borderColor:'#ef4444',
-      backgroundColor:'rgba(239,68,68,.1)',fill:true,spanGaps:true
-    }],{min:Math.min(...hrWeekData.filter(Boolean))-10});
-  } else if(resHrWrap){
-    resHrWrap.innerHTML='<div class="empty" style="height:180px;display:flex;align-items:center;justify-content:center">Sin datos de FC esta semanas</div>';
+  if(resHrWrap){
+    if(!athleteZones.length){
+      resHrWrap.innerHTML='<div class="empty" style="height:180px;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:12px;color:var(--fa)">Sin zonas de FC configuradas en Strava</div>';
+    } else {
+      const zColors=['#60a5fa','#34d399','#fbbf24','#f97316','#ef4444'];
+      const zNames=['Z1','Z2','Z3','Z4','Z5'];
+      // Build zones with absolute bpm from Strava
+      const zones=athleteZones.map((z,i)=>({
+        minBpm:z.min, maxBpm:z.max===-1?999:z.max, color:zColors[i], name:zNames[i]
+      }));
+      function classifyBPM(bpm){
+        for(let i=0;i<zones.length;i++) if(bpm>=zones[i].minBpm&&bpm<=zones[i].maxBpm) return i;
+        return zones.length-1;
+      }
+      // For each week, calculate % time in each zone from activities with HR
+      const weekZonePcts=w10.map(w=>{
+        const wkActs=allPool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end&&a.average_heartrate&&a.moving_time);
+        if(!wkActs.length) return null;
+        const zoneSecs=[0,0,0,0,0];
+        let total=0;
+        wkActs.forEach(a=>{
+          zoneSecs[classifyBPM(Math.round(a.average_heartrate))]+=a.moving_time;
+          total+=a.moving_time;
+        });
+        return zoneSecs.map(s=>total?+(s/total*100).toFixed(1):0);
+      });
+ 
+      // Render as stacked bar chart
+      resHrWrap.innerHTML='<canvas id="res-hr"></canvas>';
+      const c=document.getElementById('res-hr');
+      const ex=Chart.getChart(c);if(ex)ex.destroy();
+      const tk={ticks:{color:'#555',font:{size:10,family:'DM Mono'}},grid:{color:'rgba(255,255,255,.04)'}};
+      new Chart(c,{
+        type:'bar',
+        data:{
+          labels:lbs,
+          datasets:zones.map((z,i)=>({
+            label:z.name,
+            data:weekZonePcts.map(w=>w?w[i]:0),
+            backgroundColor:z.color,
+            borderRadius:i===zones.length-1?4:0,
+            borderSkipped:false,
+          }))
+        },
+        options:{
+          responsive:true,maintainAspectRatio:false,
+          animation:{duration:200},
+          plugins:{
+            legend:{display:true,position:'bottom',labels:{color:'#666',font:{size:10,family:'DM Mono'},boxWidth:10,padding:12}},
+            tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.raw.toFixed(0)}%`}}
+          },
+          scales:{
+            x:{...tk,stacked:true},
+            y:{...tk,stacked:true,min:0,max:100,ticks:{...tk.ticks,callback:v=>v+'%'}}
+          }
+        }
+      });
+    }
   }
  
   const wkA=activities.filter(a=>new Date(a.start_date)>=ws);

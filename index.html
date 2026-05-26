@@ -249,6 +249,8 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
           <div class="det-hero" id="det-stats"></div>
           <div class="map-box" id="det-map"></div>
           <div id="det-photos" style="margin-bottom:1rem"></div>
+          <!-- Elevation chart -->
+          <div id="det-elev-wrap" style="margin-bottom:1rem"></div>
           <div class="two-col" style="margin-top:0">
             <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:.75rem">RITMO POR KM</div><div style="position:relative;height:160px;min-height:160px;flex-shrink:0"><canvas id="det-pace"></canvas></div></div>
             <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:.75rem">FRECUENCIA CARDÍACA</div><div style="position:relative;height:160px" id="det-hr-wrap"><canvas id="det-hr"></canvas></div></div>
@@ -499,7 +501,31 @@ function renderPerfil(){
   const yrKm=yrActs.reduce((s,a)=>s+a.distance/1000,0);
   document.getElementById('pf-badges').innerHTML='';
   const valenciaDate=new Date('2026-12-06');const daysLeft=Math.ceil((valenciaDate-new Date())/86400000);
-  document.getElementById('pf-race').innerHTML=`<div class="race-card" onclick="openRaceModal()" style="cursor:pointer;transition:opacity .2s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'"><div style="display:flex;align-items:center;justify-content:space-between;gap:1rem"><div><div class="race-label">📅 Próxima carrera — click para más info</div><div class="race-name">Maratón de Valencia 2026</div><div class="race-meta">6 de diciembre 2026 · Valencia, España · 42.195 km</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:2rem;font-weight:800;color:var(--or);letter-spacing:-.04em;line-height:1">${daysLeft}</div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-top:2px">días</div></div></div></div>`;
+  const ssDate=new Date('2026-10-04');const daysLeftSS=Math.ceil((ssDate-new Date())/86400000);
+  const nextRace=daysLeftSS>0?{name:'Media Maratón de San Sebastián',date:'4 de octubre 2026',city:'San Sebastián, España',dist:'21.097 km',days:daysLeftSS,modal:false}:{name:'Maratón de Valencia 2026',date:'6 de diciembre 2026',city:'Valencia, España',dist:'42.195 km',days:daysLeft,modal:true};
+  document.getElementById('pf-race').innerHTML=`
+    <div class="race-card" onclick="${nextRace.modal?'openRaceModal()':''}" style="cursor:pointer;transition:opacity .2s;margin-bottom:.5rem" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem">
+        <div>
+          <div class="race-label">📅 Próxima carrera${nextRace.modal?' — click para más info':''}</div>
+          <div class="race-name">${nextRace.name}</div>
+          <div class="race-meta">${nextRace.date} · ${nextRace.city} · ${nextRace.dist}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:2rem;font-weight:800;color:var(--or);letter-spacing:-.04em;line-height:1">${nextRace.days}</div>
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-top:2px">días</div>
+        </div>
+      </div>
+    </div>
+    <div class="race-card" onclick="openRaceModal()" style="cursor:pointer;transition:opacity .2s;opacity:.6" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.6'">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem">
+        <div>
+          <div class="race-label">📅 ${nextRace.modal?'Media Maratón San Sebastián':'Maratón de Valencia 2026'}</div>
+          <div class="race-name" style="font-size:.9rem">${nextRace.modal?'4 oct 2026 · 21K':'6 dic 2026 · 42K'}</div>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:12px;color:var(--mu)">${nextRace.modal?daysLeftSS:daysLeft} días</div>
+      </div>
+    </div>`;
   pfStatSport='all'; drawPfStats();
   pfSportType='Run'; drawPfChart();
   // shoes
@@ -736,7 +762,8 @@ async function selectAct(idx){
     {l:'Tiempo',        v:fmtTime(displayTime),                       u:''},
     {l:'Tiempo mov.',   v:fmtTime(a.moving_time),                     u:''},
     {l:'Ritmo',         v:pace,                                       u:'min/km'},
-    {l:'Elevación',     v:'↑'+(a.total_elevation_gain||0),            u:'m'},
+    {l:'Desnivel +',    v:'↑'+(a.total_elevation_gain||0),            u:'m'},
+    {l:'Desnivel −',    v:a.total_elevation_loss?'↓'+Math.round(a.total_elevation_loss):'—', u:'m'},
     {l:'FC promedio',   v:a.average_heartrate?Math.round(a.average_heartrate):'—', u:'bpm'},
     {l:'FC máxima',     v:a.max_heartrate?Math.round(a.max_heartrate):'—',         u:'bpm'},
     {l:'Calorías',      v:a.calories?Math.round(a.calories):'—',     u:'kcal'},
@@ -780,6 +807,23 @@ async function selectAct(idx){
         pointRadius:4,pointBackgroundColor:'#FC4C02'
       }],{paceMargin:true,min:paceMin,max:paceMax,
         cbY:v=>{const m=Math.floor(v/60),s=Math.round(v%60);return m+':'+(s<10?'0':'')+s}});
+ 
+      // Elevation profile from splits
+      const elevWrap=document.getElementById('det-elev-wrap');
+      const elevData=validSplits.map(s=>s.elevation_difference!=null?Math.round(s.elevation_difference):null);
+      if(elevWrap&&elevData.some(v=>v!=null)){
+        elevWrap.innerHTML=`<div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:.5rem">PERFIL DE ELEVACIÓN (m por km)</div><div style="position:relative;height:120px"><canvas id="det-elev"></canvas></div>`;
+        const elevColors=elevData.map(v=>v>0?'rgba(239,68,68,.7)':'rgba(29,185,84,.7)');
+        const c=document.getElementById('det-elev');
+        const ex=Chart.getChart(c);if(ex)ex.destroy();
+        const tk={ticks:{color:'#555',font:{size:10,family:'DM Mono'}},grid:{color:'rgba(255,255,255,.04)'}};
+        new Chart(c,{type:'bar',data:{labels,datasets:[{
+          label:'desnivel',data:elevData,
+          backgroundColor:elevColors,borderRadius:3,borderSkipped:false
+        }]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:200},
+          plugins:{legend:{display:false}},
+          scales:{x:tk,y:{...tk,ticks:{...tk.ticks,callback:v=>(v>0?'+':'')+v+'m'}}}}});
+      } else if(elevWrap){ elevWrap.innerHTML=''; }
  
       // HR per split — use validSplits to match pace chart
       const hrWrap=document.getElementById('det-hr-wrap');

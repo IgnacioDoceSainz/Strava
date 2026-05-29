@@ -502,12 +502,14 @@ function renderPerfil(){
   document.getElementById('pf-badges').innerHTML='';
   const valenciaDate=new Date('2026-12-06');const daysLeft=Math.ceil((valenciaDate-new Date())/86400000);
   const ssDate=new Date('2026-10-04');const daysLeftSS=Math.ceil((ssDate-new Date())/86400000);
-  const nextRace=daysLeftSS>0?{name:'Media Maratón de San Sebastián',date:'4 de octubre 2026',city:'San Sebastián, España',dist:'21.097 km',days:daysLeftSS,modal:false}:{name:'Maratón de Valencia 2026',date:'6 de diciembre 2026',city:'Valencia, España',dist:'42.195 km',days:daysLeft,modal:true};
+  const nextRace=daysLeftSS>0
+    ?{name:'Rural Kutxa Media Maratón',date:'4 de octubre 2026',city:'San Sebastián, España',dist:'21.097 km',days:daysLeftSS,isValencia:false}
+    :{name:'Maratón de Valencia 2026',date:'6 de diciembre 2026',city:'Valencia, España',dist:'42.195 km',days:daysLeft,isValencia:true};
   document.getElementById('pf-race').innerHTML=`
-    <div class="race-card" onclick="${nextRace.modal?'openRaceModal()':''}" style="cursor:pointer;transition:opacity .2s;margin-bottom:.5rem" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+    <div class="race-card" onclick="${nextRace.isValencia?'openRaceModal()':''}" style="cursor:pointer;transition:opacity .2s;margin-bottom:.5rem" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem">
         <div>
-          <div class="race-label">📅 Próxima carrera${nextRace.modal?' — click para más info':''}</div>
+          <div class="race-label">📅 Próxima carrera</div>
           <div class="race-name">${nextRace.name}</div>
           <div class="race-meta">${nextRace.date} · ${nextRace.city} · ${nextRace.dist}</div>
         </div>
@@ -517,15 +519,12 @@ function renderPerfil(){
         </div>
       </div>
     </div>
-    <div class="race-card" onclick="openRaceModal()" style="cursor:pointer;transition:opacity .2s;opacity:.6" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.6'">
+    ${daysLeftSS>0?`<div class="race-card" onclick="openRaceModal()" style="cursor:pointer;transition:opacity .2s;opacity:.6" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.6'">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem">
-        <div>
-          <div class="race-label">📅 ${nextRace.modal?'Media Maratón San Sebastián':'Maratón de Valencia 2026'}</div>
-          <div class="race-name" style="font-size:.9rem">${nextRace.modal?'4 oct 2026 · 21K':'6 dic 2026 · 42K'}</div>
-        </div>
-        <div style="font-family:var(--font-mono);font-size:12px;color:var(--mu)">${nextRace.modal?daysLeftSS:daysLeft} días</div>
+        <div><div class="race-label">📅 Maratón de Valencia 2026 — click para info</div></div>
+        <div style="font-family:var(--font-mono);font-size:12px;color:var(--mu)">${daysLeft} días</div>
       </div>
-    </div>`;
+    </div>`:''}`;
   pfStatSport='all'; drawPfStats();
   pfSportType='Run'; drawPfChart();
   // shoes
@@ -1010,16 +1009,13 @@ function renderDetHRZones(splits, detail){
   const avgHR=detail.average_heartrate;
   if(!avgHR&&!splits?.some(s=>s.average_heartrate)){el.innerHTML='';return;}
  
-  // Zone labels matching Strava exactly
+  const zoneColors=['#60a5fa','#34d399','#fbbf24','#f97316','#ef4444'];
   const zoneLabels=['Recuperación','Resistencia','Ritmo','Umbral','Anaeróbico'];
-  const zoneColors=['#9ca3af','#f9a8d4','#fca5a5','#ef4444','#b91c1c'];
  
-  // Use Strava athlete zones directly
   let zones;
   if(athleteZones&&athleteZones.length>=5){
     zones=athleteZones.map((z,i)=>({
-      name:'Z'+(i+1), label:zoneLabels[i]||'',
-      color:zoneColors[i],
+      name:'Z'+(i+1), label:zoneLabels[i]||'', color:zoneColors[i],
       minBpm:z.min, maxBpm:z.max===-1?999:z.max,
     }));
   } else {
@@ -1051,44 +1047,40 @@ function renderDetHRZones(splits, detail){
   if(!totalSecs){el.innerHTML='';return;}
  
   const pcts=zoneSecs.map(s=>+(s/totalSecs*100).toFixed(1));
-  const maxWidth=Math.max(...pcts)||1;
+  pcts[pcts.indexOf(Math.max(...pcts))]+=+(100-pcts.reduce((a,b)=>a+b,0)).toFixed(1);
  
-  // Strava-style table: Z5 top → Z1 bottom
+  // Z5 top → Z1 bottom, horizontal bars
   const rows=[...zones].reverse().map(z=>{
     const i=zones.indexOf(z);
-    const pct=pcts[i];
-    const secs=zoneSecs[i];
-    const bpmLabel=z.maxBpm===999?`> ${z.minBpm-1}`:`${z.minBpm} - ${z.maxBpm}`;
-    const barW=Math.round(pct/maxWidth*100);
-    return `<tr style="border-bottom:1px solid var(--bd)">
-      <td style="padding:8px 10px;font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--mu);width:40px">${z.name}</td>
-      <td style="padding:8px 10px;font-size:12px;color:var(--tx)">${z.label}</td>
-      <td style="padding:8px 10px;font-family:var(--font-mono);font-size:12px;color:var(--mu)">${bpmLabel}</td>
-      <td style="padding:8px 10px;font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--tx)">${fmtTimeFull(Math.round(secs))}</td>
-      <td style="padding:8px 10px;font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--tx)">${pct.toFixed(1)}%</td>
-      <td style="padding:8px 16px;width:120px">
-        <div style="height:20px;background:var(--s3);border-radius:3px;overflow:hidden">
-          <div style="width:${barW}%;height:100%;background:${z.color};border-radius:3px"></div>
+    const pct=pcts[i]; const secs=zoneSecs[i];
+    const bpmLabel=z.maxBpm===999?`>${z.minBpm-1}`:`${z.minBpm}–${z.maxBpm}`;
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="width:24px;flex-shrink:0;font-family:var(--font-mono);font-size:11px;font-weight:600;color:${z.color}">${z.name}</div>
+      <div style="width:80px;flex-shrink:0;font-size:11px;color:var(--mu)">${z.label}</div>
+      <div style="flex:1;background:var(--s3);border-radius:4px;height:20px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${z.color};border-radius:4px;display:flex;align-items:center;padding-left:8px;min-width:${pct>0?'4px':'0'}">
+          ${pct>=8?`<span style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:rgba(0,0,0,.8)">${Math.round(pct)}%</span>`:''}
         </div>
-      </td>
-    </tr>`;
+      </div>
+      <div style="width:90px;text-align:right;flex-shrink:0">
+        <span style="font-family:var(--font-mono);font-size:11px;color:var(--tx);font-weight:600">${Math.round(pct)}%</span>
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--fa);margin-left:4px">${fmtTimeFull(Math.round(secs))}</span>
+      </div>
+    </div>`;
   }).join('');
  
+  const legend=zones.map(z=>`<div style="display:flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:10px">
+    <span style="width:7px;height:7px;border-radius:2px;background:${z.color};display:inline-block"></span>
+    <span style="color:var(--mu)">${z.name} ${z.label}</span>
+    <span style="color:var(--fa)">${z.minBpm}–${z.maxBpm===999?'∞':z.maxBpm}</span>
+  </div>`).join('');
+ 
   el.innerHTML=`
-    <div style="font-size:14px;font-weight:600;margin-bottom:12px">Análisis de ritmo cardíaco</div>
-    <div style="overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead><tr style="border-bottom:1px solid var(--bd2)">
-        <th style="padding:6px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400"></th>
-        <th style="padding:6px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400"></th>
-        <th style="padding:6px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400">BPM</th>
-        <th style="padding:6px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400">Tiempo</th>
-        <th style="padding:6px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400">%</th>
-        <th style="padding:6px 10px"></th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>
-    <div style="font-family:var(--font-mono);font-size:10px;color:var(--fa);margin-top:8px">En función de tus <span style="color:var(--or)">zonas de ritmo cardíaco</span></div>`;
+    <div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">
+      <span>Frecuencia cardíaca por zona</span><span style="color:var(--fa)">zonas de tu cuenta Strava</span>
+    </div>
+    <div style="margin-bottom:8px">${rows}</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">${legend}</div>`;
 }
  
  

@@ -1009,23 +1009,14 @@ function renderDetHRZones(splits, detail){
   const avgHR=detail.average_heartrate;
   if(!avgHR&&!splits?.some(s=>s.average_heartrate)){el.innerHTML='';return;}
  
-  const zoneColors=['#60a5fa','#34d399','#fbbf24','#f97316','#ef4444'];
-  const zoneLabels=['Recuperación','Resistencia','Ritmo','Umbral','Anaeróbico'];
- 
-  let zones;
-  if(athleteZones&&athleteZones.length>=5){
-    zones=athleteZones.map((z,i)=>({
-      name:'Z'+(i+1), label:zoneLabels[i]||'', color:zoneColors[i],
-      minBpm:z.min, maxBpm:z.max===-1?999:z.max,
-    }));
-  } else {
-    const maxHR=detail.max_heartrate||190;
-    zones=[0.60,0.70,0.80,0.90,1.00].map((hi,i,arr)=>({
-      name:'Z'+(i+1), label:zoneLabels[i], color:zoneColors[i],
-      minBpm:i===0?0:Math.round(maxHR*arr[i-1])+1,
-      maxBpm:i===4?999:Math.round(maxHR*hi),
-    }));
-  }
+  // Personal zones hardcoded
+  const zones=[
+    {name:'Z1', label:'Recuperación', color:'#60a5fa', minBpm:0,   maxBpm:132},
+    {name:'Z2', label:'Resistencia',  color:'#34d399', minBpm:133, maxBpm:149},
+    {name:'Z3', label:'Ritmo',        color:'#fbbf24', minBpm:150, maxBpm:165},
+    {name:'Z4', label:'Umbral',       color:'#f97316', minBpm:166, maxBpm:179},
+    {name:'Z5', label:'Anaeróbico',   color:'#ef4444', minBpm:180, maxBpm:999},
+  ];
  
   function classifyBPM(bpm){
     for(let i=0;i<zones.length;i++) if(bpm>=zones[i].minBpm&&bpm<=zones[i].maxBpm) return i;

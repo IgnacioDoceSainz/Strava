@@ -650,15 +650,14 @@ function renderResumen(){
   // FC por zonas — barras horizontales estilo Strava agregadas de todas las actividades del pool
   const resHrWrap=document.querySelector('.res-hr-wrap');
   if(resHrWrap){
-    if(!athleteZones.length){
-      resHrWrap.innerHTML='<div class="empty" style="height:auto;padding:2rem;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:12px;color:var(--fa)">Sin zonas de FC configuradas en Strava</div>';
-    } else {
-      const zColors=['#60a5fa','#34d399','#fbbf24','#f97316','#ef4444'];
-      const zLabels=['Recuperación','Resistencia','Aeróbico','Umbral','Máximo'];
-      const zones=athleteZones.map((z,i)=>({
-        minBpm:z.min, maxBpm:z.max===-1?999:z.max,
-        color:zColors[i], name:'Z'+(i+1), label:zLabels[i]
-      }));
+    {
+      const zones=[
+        {minBpm:0,   maxBpm:132, color:'#60a5fa', name:'Z1', label:'Recuperación'},
+        {minBpm:133, maxBpm:149, color:'#34d399', name:'Z2', label:'Resistencia'},
+        {minBpm:150, maxBpm:165, color:'#fbbf24', name:'Z3', label:'Ritmo'},
+        {minBpm:166, maxBpm:179, color:'#f97316', name:'Z4', label:'Umbral'},
+        {minBpm:180, maxBpm:999, color:'#ef4444', name:'Z5', label:'Anaeróbico'},
+      ];
       function classifyBPM(bpm){
         for(let i=0;i<zones.length;i++) if(bpm>=zones[i].minBpm&&bpm<=zones[i].maxBpm) return i;
         return zones.length-1;

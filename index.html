@@ -872,28 +872,35 @@ async function selectAct(idx){
       else{document.getElementById('det-hr-wrap').innerHTML='<div class="empty" style="height:160px;display:flex;align-items:center;justify-content:center">Sin datos de FC</div>';}
     }
  
-    // Splits table
+    // Splits table — always show all valid splits including partial last km
     if(splits.length){
       const splitRows=splits.map((s,i)=>{
+        if(!s.moving_time||s.moving_time<=0||!s.distance||s.distance<10) return '';
         const pace=(s.moving_time>0&&s.distance>=10)?Math.round(1000/(s.distance/s.moving_time)):0;
-        const paceStr=pace?fmtPace(pace):'—';
+        const paceStr=pace&&pace<900?fmtPace(pace):'—';
         const elev=s.elevation_difference!=null?`${s.elevation_difference>0?'+':''}${Math.round(s.elevation_difference)}m`:'—';
-        return `<tr>
-          <td style="padding:7px 10px;font-weight:600;color:var(--mu)">km ${i+1}</td>
-          <td style="padding:7px 10px;font-weight:700;color:var(--or)">${paceStr}</td>
-          <td style="padding:7px 10px">${s.average_heartrate?Math.round(s.average_heartrate)+' bpm':'—'}</td>
-          <td style="padding:7px 10px;color:${s.elevation_difference>0?'#ef4444':'#1db954'}">${elev}</td>
+        const elevColor=s.elevation_difference>0?'#ef4444':'#1db954';
+        const isPartial=s.distance<950; // less than 950m = partial km
+        const distLabel=isPartial?`${Math.round(s.distance)}m`:`km ${i+1}`;
+        const hrBpm=s.average_heartrate?Math.round(s.average_heartrate):null;
+        // Color-code FC by personal zones
+        const hrColor=hrBpm?(hrBpm<=132?'#60a5fa':hrBpm<=149?'#34d399':hrBpm<=165?'#fbbf24':hrBpm<=179?'#f97316':'#ef4444'):'var(--mu)';
+        return `<tr style="border-bottom:1px solid var(--bd)${isPartial?';opacity:.7':''}">
+          <td style="padding:7px 10px;font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--mu)">${distLabel}</td>
+          <td style="padding:7px 10px;font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--or)">${paceStr}</td>
+          <td style="padding:7px 10px;font-family:var(--font-mono);font-size:12px;font-weight:600;color:${hrColor}">${hrBpm?hrBpm+' bpm':'—'}</td>
+          <td style="padding:7px 10px;font-family:var(--font-mono);font-size:12px;color:${elevColor}">${elev}</td>
         </tr>`;
-      }).join('');
+      }).filter(Boolean).join('');
       document.getElementById('det-splits').innerHTML=`
-        <div class="card-title">Parciales</div>
+        <div class="card-title" style="margin-bottom:.75rem">Parciales</div>
         <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:12px">
-          <thead><tr style="border-bottom:1px solid var(--bd)">
-            <th style="padding:6px 10px;text-align:left;color:var(--mu);font-weight:500">KM</th>
-            <th style="padding:6px 10px;text-align:left;color:var(--mu);font-weight:500">Ritmo</th>
-            <th style="padding:6px 10px;text-align:left;color:var(--mu);font-weight:500">FC</th>
-            <th style="padding:6px 10px;text-align:left;color:var(--mu);font-weight:500">Desn.</th>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="border-bottom:1px solid var(--bd2)">
+            <th style="padding:5px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400">KM</th>
+            <th style="padding:5px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400">Ritmo</th>
+            <th style="padding:5px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400">FC</th>
+            <th style="padding:5px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400">Desn.</th>
           </tr></thead>
           <tbody>${splitRows}</tbody>
         </table></div>`;

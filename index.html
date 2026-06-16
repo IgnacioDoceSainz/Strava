@@ -795,10 +795,11 @@ async function selectAct(idx){
   if(beEl) beEl.innerHTML='';
   showDetLoading(true);
   try{
-    const [detail, photos, comments] = await Promise.all([
+    const [detail, photos, comments, laps] = await Promise.all([
       apiFetch(`/activities/${a.id}?include_all_efforts=true`),
       apiFetch(`/activities/${a.id}/photos?size=600&photo_sources=true`).catch(()=>[]),
       apiFetch(`/activities/${a.id}/comments?page=1&per_page=20`).catch(()=>[]),
+      apiFetch(`/activities/${a.id}/laps`).catch(()=>[]),
     ]);
  
     // Real splits from API

@@ -910,8 +910,52 @@ async function selectAct(idx){
       document.getElementById('det-splits').innerHTML='';
     }
  
-    // HR Zones from splits
-    window._lastSplits=splits;
+    // Laps table
+    const lapsEl=document.getElementById('det-laps');
+    if(lapsEl&&laps.length){
+      let cumTime=0;
+      const lapRows=laps.map((l,i)=>{
+        cumTime+=l.elapsed_time||0;
+        const pace=l.average_speed>0?fmtPace(1000/l.average_speed):'—';
+        const dist=(l.distance/1000).toFixed(2);
+        const t=fmtTimeFull(l.elapsed_time||0);
+        const cum=fmtTimeFull(cumTime);
+        const hr=l.average_heartrate?Math.round(l.average_heartrate):'—';
+        const hrMax=l.max_heartrate?Math.round(l.max_heartrate):'—';
+        const asc=l.total_elevation_gain!=null?Math.round(l.total_elevation_gain):'—';
+        const desc=l.total_elevation_loss!=null?Math.round(l.total_elevation_loss):'—';
+        const isSummary=i===laps.length-1&&laps.length>1;
+        const rowStyle=isSummary?'font-weight:700;border-top:2px solid var(--bd2)':'';
+        return `<tr style="border-bottom:1px solid var(--bd);${rowStyle}">
+          <td style="padding:7px 10px;font-family:var(--font-mono);font-size:11px;color:var(--mu)">${isSummary?'Resumen':i+1}</td>
+          <td style="padding:7px 10px;font-family:var(--font-mono);font-size:11px">${t}</td>
+          <td style="padding:7px 10px;font-family:var(--font-mono);font-size:11px;color:var(--fa)">${cum}</td>
+          <td style="padding:7px 10px;font-family:var(--font-mono);font-size:11px">${dist}</td>
+          <td style="padding:7px 10px;font-family:var(--font-mono);font-size:11px;color:var(--or)">${pace}</td>
+          <td style="padding:7px 10px;font-family:var(--font-mono);font-size:11px">${hr}</td>
+          <td style="padding:7px 10px;font-family:var(--font-mono);font-size:11px;color:var(--fa)">${hrMax}</td>
+          <td style="padding:7px 10px;font-family:var(--font-mono);font-size:11px;color:#34d399">↑${asc}</td>
+          <td style="padding:7px 10px;font-family:var(--font-mono);font-size:11px;color:#f97316">↓${desc}</td>
+        </tr>`;
+      }).join('');
+      lapsEl.innerHTML=`
+        <div class="card-title">Laps</div>
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead><tr style="border-bottom:1px solid var(--bd2)">
+            <th style="padding:5px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400">Lap</th>
+            <th style="padding:5px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400">Tiempo</th>
+            <th style="padding:5px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400">Acumulado</th>
+            <th style="padding:5px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400">Dist (km)</th>
+            <th style="padding:5px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400">Ritmo</th>
+            <th style="padding:5px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400">FC med</th>
+            <th style="padding:5px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400">FC máx</th>
+            <th style="padding:5px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400">↑ m</th>
+            <th style="padding:5px 10px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--fa);font-weight:400">↓ m</th>
+          </tr></thead>
+          <tbody>${lapRows}</tbody>
+        </table></div>`;
+    } else if(lapsEl){ lapsEl.innerHTML=''; }
     window._lastDetail=detail;
     renderDetHRZones(splits, detail);
  

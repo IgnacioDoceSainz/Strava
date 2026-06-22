@@ -198,7 +198,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
       </div>
       <div id="pf-race"></div>
       <div class="card">
-        <div class="card-title">km por deporte · últimas 10 semanas</div>
+        <div class="card-title">km por deporte · últimas 12 semanas</div>
         <div class="pills" id="pf-sport-pills" style="margin-bottom:.75rem">
           <button class="pill on" onclick="pfSport('Run',this)">🏃 Carrera</button>
           <button class="pill" onclick="pfSport('Ride',this)">🚴 Ciclismo</button>
@@ -225,8 +225,8 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
       </div>
       <div class="sg" id="res-stats"></div>
       <div class="two-col">
-        <div class="card"><div class="card-title">km · últimas 10 semanas</div><div class="chart-fixed-180 res-km-wrap"><canvas id="res-km"></canvas></div></div>
-        <div class="card"><div class="card-title">elevación · últimas 10 semanas (m)</div><div class="chart-fixed-180 res-elev-wrap"><canvas id="res-elev"></canvas></div></div>
+        <div class="card"><div class="card-title">km · últimas 12 semanas</div><div class="chart-fixed-180 res-km-wrap"><canvas id="res-km"></canvas></div></div>
+        <div class="card"><div class="card-title">elevación · últimas 12 semanas (m)</div><div class="chart-fixed-180 res-elev-wrap"><canvas id="res-elev"></canvas></div></div>
       </div>
       <div class="card"><div class="card-title">FC por zonas · acumulado</div><div class="res-hr-wrap"></div></div>
       <div class="card"><div class="card-title">actividades esta semana</div><div id="res-week"></div></div>
@@ -924,7 +924,7 @@ async function selectAct(idx){
         const hrMax=l.max_heartrate?Math.round(l.max_heartrate):'—';
         const asc=l.total_elevation_gain!=null?Math.round(l.total_elevation_gain):'—';
         const desc=l.total_elevation_loss!=null?Math.round(l.total_elevation_loss):'—';
-        const isSummary=false;
+        const isSummary=i===laps.length-1&&laps.length>1;
         const rowStyle=isSummary?'font-weight:700;border-top:2px solid var(--bd2)':'';
         return `<tr style="border-bottom:1px solid var(--bd);${rowStyle}">
           <td style="padding:7px 10px;font-family:var(--font-mono);font-size:11px;color:var(--mu)">${isSummary?'Resumen':i+1}</td>
@@ -1388,7 +1388,7 @@ function paceFromActivity(a){
 function fmtDate(d){return new Date(d).toLocaleDateString('es-ES',{day:'numeric',month:'short'})}
 function fmtDateLong(d){return new Date(d).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'})}
 function weekRange(d){const day=d.getDay()||7,start=new Date(d);start.setDate(d.getDate()-day+1);start.setHours(0,0,0,0);const end=new Date(start);end.setDate(start.getDate()+7);return{start,end};}
-function last10Weeks(){const w=[];for(let i=9;i>=0;i--){const ref=new Date();ref.setDate(ref.getDate()-i*7);const{start,end}=weekRange(ref);w.push({start,end,label:start.toLocaleDateString('es-ES',{day:'numeric',month:'short'})});}return w;}
+function last10Weeks(){const w=[];for(let i=11;i>=0;i--){const ref=new Date();ref.setDate(ref.getDate()-i*7);const{start,end}=weekRange(ref);w.push({start,end,label:start.toLocaleDateString('es-ES',{day:'numeric',month:'short'})});}return w;}
 function last8Weeks(){return last10Weeks();}
 function genSplits(a){
   const n=Math.max(1,Math.round(a.distance/1000));

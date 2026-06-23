@@ -49,6 +49,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
 .nav-tab{padding:12px 28px;font-size:13px;font-weight:600;color:var(--mu);cursor:pointer;border-bottom:2px solid transparent;letter-spacing:.04em;transition:color .2s;white-space:nowrap}
 .nav-tab:hover{color:var(--tx)}.nav-tab.on{color:var(--or);border-bottom-color:var(--or)}
 .wrap{max-width:1000px;margin:0 auto;padding:2rem 1.5rem;flex:1;overflow-x:hidden}
+.wrap.wide{max-width:1400px}
 .panel{display:none;animation:fadeIn .25s ease}.panel.on{display:block}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 .card-title{font-family:var(--font-mono);font-size:11px;color:var(--mu);letter-spacing:.06em;text-transform:uppercase;margin-bottom:1rem}
@@ -273,9 +274,9 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
         <button class="pill" onclick="filterMapa('Ride',this)">🚴 Ciclismo</button>
         <button class="pill" onclick="filterMapa('Swim',this)">🏊 Natación</button>
       </div>
-      <div class="card">
+      <div class="card" style="padding:1rem">
         <div class="card-title">Mapa de calor de actividades</div>
-        <div class="map-box" id="map-heat" style="height:520px"></div>
+        <div class="map-box" id="map-heat" style="height:80vh;min-height:520px;max-height:850px"></div>
       </div>
     </div>
  
@@ -499,6 +500,7 @@ function setupNav(){
       document.querySelectorAll('.nav-tab').forEach(x=>x.classList.remove('on'));
       document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
       t.classList.add('on'); document.getElementById('p-'+t.dataset.p).classList.add('on');
+      document.querySelector('.wrap').classList.toggle('wide', t.dataset.p==='mapa');
       if(t.dataset.p==='actividades'&&mapDet) setTimeout(()=>mapDet.invalidateSize(),80);
       if(t.dataset.p==='mapa'){
         if(mapHeat) setTimeout(()=>mapHeat.invalidateSize(),80);

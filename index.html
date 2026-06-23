@@ -172,6 +172,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
       <div class="nav-tab on" data-p="perfil">Perfil</div>
       <div class="nav-tab" data-p="resumen">Resumen</div>
       <div class="nav-tab" data-p="actividades">Actividades</div>
+      <div class="nav-tab" data-p="mapa">Mapa</div>
       <div class="nav-tab" data-p="prs">PRs</div>
     </nav>
   </div>
@@ -261,6 +262,20 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
           <div id="det-laps" style="margin-top:1rem"></div>
           <div id="det-comments" style="margin-top:1rem"></div>
         </div>
+      </div>
+    </div>
+ 
+    <!-- MAPA -->
+    <div class="panel" id="p-mapa">
+      <div class="pills" id="mapa-pills">
+        <button class="pill on" onclick="filterMapa('all',this)">Todas</button>
+        <button class="pill" onclick="filterMapa('Run',this)">🏃 Carrera</button>
+        <button class="pill" onclick="filterMapa('Ride',this)">🚴 Ciclismo</button>
+        <button class="pill" onclick="filterMapa('Swim',this)">🏊 Natación</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Mapa de calor de actividades</div>
+        <div class="map-box" id="map-heat" style="height:520px"></div>
       </div>
     </div>
  
@@ -485,8 +500,52 @@ function setupNav(){
       document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
       t.classList.add('on'); document.getElementById('p-'+t.dataset.p).classList.add('on');
       if(t.dataset.p==='actividades'&&mapDet) setTimeout(()=>mapDet.invalidateSize(),80);
+      if(t.dataset.p==='mapa'){
+        if(mapHeat) setTimeout(()=>mapHeat.invalidateSize(),80);
+        else setTimeout(()=>renderMapa(),80);
+      }
     });
   });
+}
+ 
+// ══ MAPA (heatmap) ══
+let mapHeat=null, mapaFilterType='all';
+function filterMapa(t,el){
+  mapaFilterType=t;
+  document.querySelectorAll('#mapa-pills .pill').forEach(p=>p.classList.remove('on'));
+  el.classList.add('on');
+  renderMapa();
+}
+function renderMapa(){
+  if(!mapHeat){
+    mapHeat=L.map('map-heat');
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© CartoDB',maxZoom:19}).addTo(mapHeat);
+  }
+  // Clear previous polylines
+  mapHeat.eachLayer(l=>{if(l instanceof L.Polyline) mapHeat.removeLayer(l);});
+ 
+  const pool=mapaFilterType==='all'?activities:activities.filter(a=>a.type===mapaFilterType);
+  const withRoute=pool.filter(a=>a.map?.summary_polyline);
+ 
+  if(!withRoute.length){
+    mapHeat.setView([40.4165,-3.7026],6);
+    return;
+  }
+ 
+  const allBounds=[];
+  withRoute.forEach(a=>{
+    const coords=decodePoly(a.map.summary_polyline);
+    if(!coords.length) return;
+    // Layered glow effect: wide faint line + thin bright line for heat look
+    L.polyline(coords,{color:'#FC4C02',weight:5,opacity:0.08,lineCap:'round'}).addTo(mapHeat);
+    L.polyline(coords,{color:'#FC4C02',weight:2,opacity:0.3,lineCap:'round'}).addTo(mapHeat);
+    allBounds.push(...coords);
+  });
+ 
+  if(allBounds.length){
+    mapHeat.fitBounds(L.polyline(allBounds).getBounds(),{padding:[30,30]});
+  }
+  setTimeout(()=>mapHeat.invalidateSize(),50);
 }
  
 // ══ PERFIL ══
@@ -1562,4 +1621,3 @@ function logout(){
 </script>
 </body>
 </html>
- 

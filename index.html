@@ -19,6 +19,16 @@
   --green:#1db954;--blue:#3b82f6;--red:#ef4444;
   --font-head:'Syne',sans-serif;--font-mono:'DM Mono',monospace;
 }
+html.light{
+  --or:#FC4C02;--or2:rgba(252,76,2,.08);--or3:rgba(252,76,2,.18);
+  --bg:#f7f7f8;--s1:#ffffff;--s2:#f0f0f2;--s3:#e6e6e9;--s4:#dcdce0;
+  --bd:rgba(0,0,0,.08);--bd2:rgba(0,0,0,.14);
+  --tx:#16171a;--mu:#6b6b70;--fa:#9a9aa0;
+  --green:#16a349;--blue:#2563eb;--red:#dc2626;
+}
+body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-height:100vh;-webkit-font-smoothing:antialiased;transition:background .25s ease,color .25s ease}
+.theme-toggle{width:30px;height:30px;border-radius:50%;border:1px solid var(--bd2);background:var(--s2);color:var(--tx);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:border-color .2s,transform .2s;flex-shrink:0}
+.theme-toggle:hover{border-color:var(--or);transform:scale(1.06)}
 body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-height:100vh;-webkit-font-smoothing:antialiased}
 #loading{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
 .spin{width:32px;height:32px;border:2px solid var(--bd2);border-top-color:var(--or);border-radius:50%;animation:spin .7s linear infinite}
@@ -163,6 +173,9 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
   <header class="hdr">
     <div class="hdr-brand">Strava ·</div>
     <div class="hdr-right">
+      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Cambiar tema">
+        <span id="theme-icon">🌙</span>
+      </button>
       <div class="hdr-av" id="hdr-av"></div>
       <span class="hdr-nm" id="hdr-nm"></span>
       <button class="btn-out" onclick="logout()">salir</button>
@@ -331,6 +344,21 @@ let activities=[],athlete={},gear=[],athleteZones=[];
 try{const cz=localStorage.getItem('strava_zones');if(cz)athleteZones=JSON.parse(cz);}catch(e){}
 let filterType='all',resSportType='all',prSportType='Run',pfSportType='Run';
 let mapDet=null;
+ 
+function toggleTheme(){
+  const isLight=document.documentElement.classList.toggle('light');
+  document.getElementById('theme-icon').textContent=isLight?'☀️':'🌙';
+  try{localStorage.setItem('theme',isLight?'light':'dark');}catch(e){}
+}
+function initTheme(){
+  let saved;
+  try{saved=localStorage.getItem('theme');}catch(e){}
+  const isLight=saved==='light';
+  document.documentElement.classList.toggle('light',isLight);
+  const icon=document.getElementById('theme-icon');
+  if(icon) icon.textContent=isLight?'☀️':'🌙';
+}
+initTheme();
  
 window.addEventListener('DOMContentLoaded',async()=>{
   const resetTimer=setTimeout(()=>{

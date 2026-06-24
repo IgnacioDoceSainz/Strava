@@ -312,25 +312,19 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
     <div class="race-modal-hdr">
       <div>
         <div style="font-family:var(--font-mono);font-size:10px;color:var(--or);letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px">📅 Próxima carrera</div>
-        <div style="font-size:1.1rem;font-weight:700">Maratón de Valencia 2026</div>
+        <div style="font-size:1.1rem;font-weight:700" id="modal-race-name">—</div>
       </div>
       <button onclick="closeRaceModal()" style="background:transparent;border:none;color:var(--mu);font-size:20px;cursor:pointer;padding:4px">✕</button>
     </div>
     <div class="race-modal-body">
       <div class="sg" style="margin-bottom:1rem">
-        <div class="st"><div class="st-l">Fecha</div><div class="st-v" style="font-size:14px">6 dic 2026</div></div>
-        <div class="st"><div class="st-l">Ciudad</div><div class="st-v" style="font-size:14px">Valencia</div></div>
-        <div class="st"><div class="st-l">Distancia</div><div class="st-v">42.2<em>km</em></div></div>
+        <div class="st"><div class="st-l">Fecha</div><div class="st-v" id="modal-date" style="font-size:14px">—</div></div>
+        <div class="st"><div class="st-l">Ciudad</div><div class="st-v" id="modal-city" style="font-size:14px">—</div></div>
+        <div class="st"><div class="st-l">Distancia</div><div class="st-v" id="modal-dist">—</div></div>
         <div class="st"><div class="st-l">Días restantes</div><div class="st-v" id="modal-days" style="color:var(--or)">—</div></div>
       </div>
       <div class="race-map" id="race-modal-map"></div>
-      <div style="font-family:var(--font-mono);font-size:11px;color:var(--mu);line-height:1.8">
-        <div>🏟 <strong style="color:var(--tx)">Salida:</strong> Av. de les Corts Valencianes, Valencia</div>
-        <div>🏁 <strong style="color:var(--tx)">Meta:</strong> Ciudad de las Artes y las Ciencias</div>
-        <div>📏 <strong style="color:var(--tx)">Perfil:</strong> Llano · Rápido · Récord del mundo</div>
-        <div>🌡 <strong style="color:var(--tx)">Clima:</strong> ~15°C en diciembre · Ideal para correr</div>
-        <div>🔗 <strong style="color:var(--tx)">Web:</strong> <a href="https://www.valenciaciudaddelrunning.com" target="_blank" style="color:var(--or)">valenciaciudaddelrunning.com</a></div>
-      </div>
+      <div style="font-family:var(--font-mono);font-size:11px;color:var(--mu);line-height:1.8" id="modal-extra-info"></div>
     </div>
   </div>
 </div>
@@ -593,13 +587,13 @@ function renderPerfil(){
   const valenciaDate=new Date('2026-12-06');const daysLeft=Math.ceil((valenciaDate-new Date())/86400000);
   const ssDate=new Date('2026-10-04');const daysLeftSS=Math.ceil((ssDate-new Date())/86400000);
   const nextRace=daysLeftSS>0
-    ?{name:'Rural Kutxa Media Maratón',date:'4 de octubre 2026',city:'San Sebastián, España',dist:'21.097 km',days:daysLeftSS,isValencia:false}
-    :{name:'Maratón de Valencia 2026',date:'6 de diciembre 2026',city:'Valencia, España',dist:'42.195 km',days:daysLeft,isValencia:true};
+    ?{name:'Rural Kutxa Media Maratón',date:'4 de octubre 2026',city:'San Sebastián, España',dist:'21.097 km',days:daysLeftSS,key:'sansebastian'}
+    :{name:'Maratón de Valencia 2026',date:'6 de diciembre 2026',city:'Valencia, España',dist:'42.195 km',days:daysLeft,key:'valencia'};
   document.getElementById('pf-race').innerHTML=`
-    <div class="race-card" onclick="${nextRace.isValencia?'openRaceModal()':''}" style="cursor:pointer;transition:opacity .2s;margin-bottom:.5rem" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+    <div class="race-card" onclick="openRaceModal('${nextRace.key}')" style="cursor:pointer;transition:opacity .2s;margin-bottom:.5rem" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem">
         <div>
-          <div class="race-label">📅 Próxima carrera</div>
+          <div class="race-label">📅 Próxima carrera — click para más info</div>
           <div class="race-name">${nextRace.name}</div>
           <div class="race-meta">${nextRace.date} · ${nextRace.city} · ${nextRace.dist}</div>
         </div>
@@ -609,7 +603,7 @@ function renderPerfil(){
         </div>
       </div>
     </div>
-    ${daysLeftSS>0?`<div class="race-card" onclick="openRaceModal()" style="cursor:pointer;transition:opacity .2s;opacity:.6" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.6'">
+    ${daysLeftSS>0?`<div class="race-card" onclick="openRaceModal('valencia')" style="cursor:pointer;transition:opacity .2s;opacity:.6" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.6'">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem">
         <div><div class="race-label">📅 Maratón de Valencia 2026 — click para info</div></div>
         <div style="font-family:var(--font-mono);font-size:12px;color:var(--mu)">${daysLeft} días</div>
@@ -1516,32 +1510,83 @@ function mkChart(id,type,labels,datasets,extra={}){
 }
 // ── RACE MODAL ─────────────────────────────────
 let raceMap=null;
-function openRaceModal(){
+const RACE_DATA={
+  sansebastian:{
+    name:'Rural Kutxa Media Maratón San Sebastián',
+    dateObj:new Date('2026-10-04'),
+    date:'4 de octubre 2026',
+    city:'San Sebastián, España',
+    dist:'21.097<em>km</em>',
+    info:[
+      ['🏟','Salida','Boulevard de San Sebastián, frente al Ayuntamiento (Jardines Alderdi Eder), 9:30h'],
+      ['🏁','Meta','Mismo punto — Boulevard de San Sebastián'],
+      ['📏','Perfil','100% urbano y llano · asfalto · homologado RFEA'],
+      ['⏱','Límite','2h30 · liebres a 1:20, 1:25, 1:30, 1:35, 1:40, 1:45, 1:50 y 2:00'],
+      ['🥤','Avituallamiento','km 5, 7, 10, 12, 15 y meta'],
+      ['🔗','Web','<a href="https://www.mediomaratonsansebastian.com" target="_blank" style="color:var(--or)">mediomaratonsansebastian.com</a>'],
+    ],
+    coords:[
+      [43.3206,-1.9870],[43.3215,-1.9845],[43.3228,-1.9810],[43.3245,-1.9780],
+      [43.3268,-1.9755],[43.3290,-1.9730],[43.3305,-1.9698],[43.3298,-1.9660],
+      [43.3275,-1.9635],[43.3245,-1.9620],[43.3215,-1.9635],[43.3195,-1.9665],
+      [43.3185,-1.9700],[43.3190,-1.9740],[43.3198,-1.9780],[43.3206,-1.9820],
+      [43.3206,-1.9870]
+    ]
+  },
+  valencia:{
+    name:'Maratón de Valencia 2026',
+    dateObj:new Date('2026-12-06'),
+    date:'6 de diciembre 2026',
+    city:'Valencia, España',
+    dist:'42.195<em>km</em>',
+    info:[
+      ['🏟','Salida','Av. de les Corts Valencianes, Valencia'],
+      ['🏁','Meta','Ciudad de las Artes y las Ciencias'],
+      ['📏','Perfil','Llano · Rápido · Récord del mundo'],
+      ['🌡','Clima','~15°C en diciembre · Ideal para correr'],
+      ['🔗','Web','<a href="https://www.valenciaciudaddelrunning.com" target="_blank" style="color:var(--or)">valenciaciudaddelrunning.com</a>'],
+    ],
+    coords:[
+      [39.4699,-0.3763],[39.4752,-0.3821],[39.4801,-0.3756],[39.4834,-0.3689],
+      [39.4779,-0.3634],[39.4712,-0.3589],[39.4658,-0.3612],[39.4623,-0.3698],
+      [39.4589,-0.3743],[39.4612,-0.3812],[39.4667,-0.3867],[39.4723,-0.3834],
+      [39.4756,-0.3778],[39.4801,-0.3712],[39.4845,-0.3645],[39.4878,-0.3578],
+      [39.4834,-0.3512],[39.4789,-0.3478],[39.4734,-0.3512],[39.4689,-0.3556],
+      [39.4645,-0.3523],[39.4601,-0.3478],[39.4578,-0.3412],[39.4612,-0.3356],
+      [39.4656,-0.3323],[39.4701,-0.3289],[39.4745,-0.3256],[39.4712,-0.3312],
+      [39.4678,-0.3367],[39.4645,-0.3423],[39.4612,-0.3478],[39.4578,-0.3534],
+      [39.4623,-0.3578],[39.4667,-0.3612],[39.4712,-0.3645],[39.4734,-0.3689],
+      [39.4712,-0.3745],[39.4678,-0.3789],[39.4645,-0.3823],[39.4601,-0.3856],
+      [39.4623,-0.3912],[39.4667,-0.3945],[39.4712,-0.3912],[39.4734,-0.3856]
+    ]
+  }
+};
+ 
+function openRaceModal(raceKey){
+  raceKey = raceKey || 'valencia';
+  const race = RACE_DATA[raceKey];
+  if(!race) return;
+ 
   document.getElementById('race-modal').classList.add('open');
-  document.getElementById('modal-days').textContent=Math.ceil((new Date('2026-12-06')-new Date())/86400000);
+  document.getElementById('modal-race-name').textContent = race.name;
+  document.getElementById('modal-date').textContent = race.date.replace(' 2026','');
+  document.getElementById('modal-city').textContent = race.city.split(',')[0];
+  document.getElementById('modal-dist').innerHTML = race.dist;
+  document.getElementById('modal-days').textContent = Math.max(0, Math.ceil((race.dateObj - new Date())/86400000));
+  document.getElementById('modal-extra-info').innerHTML = race.info.map(([icon,label,val]) =>
+    `<div>${icon} <strong style="color:var(--tx)">${label}:</strong> ${val}</div>`
+  ).join('');
+ 
   setTimeout(()=>{
-    if(!raceMap){
-      raceMap=L.map('race-modal-map');
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© CartoDB',maxZoom:19}).addTo(raceMap);
-      // Valencia Marathon route - key waypoints along the course
-      const coords=[
-        [39.4699,-0.3763],[39.4752,-0.3821],[39.4801,-0.3756],[39.4834,-0.3689],
-        [39.4779,-0.3634],[39.4712,-0.3589],[39.4658,-0.3612],[39.4623,-0.3698],
-        [39.4589,-0.3743],[39.4612,-0.3812],[39.4667,-0.3867],[39.4723,-0.3834],
-        [39.4756,-0.3778],[39.4801,-0.3712],[39.4845,-0.3645],[39.4878,-0.3578],
-        [39.4834,-0.3512],[39.4789,-0.3478],[39.4734,-0.3512],[39.4689,-0.3556],
-        [39.4645,-0.3523],[39.4601,-0.3478],[39.4578,-0.3412],[39.4612,-0.3356],
-        [39.4656,-0.3323],[39.4701,-0.3289],[39.4745,-0.3256],[39.4712,-0.3312],
-        [39.4678,-0.3367],[39.4645,-0.3423],[39.4612,-0.3478],[39.4578,-0.3534],
-        [39.4623,-0.3578],[39.4667,-0.3612],[39.4712,-0.3645],[39.4734,-0.3689],
-        [39.4712,-0.3745],[39.4678,-0.3789],[39.4645,-0.3823],[39.4601,-0.3856],
-        [39.4623,-0.3912],[39.4667,-0.3945],[39.4712,-0.3912],[39.4734,-0.3856]
-      ];
-      const poly=L.polyline(coords,{color:'#FC4C02',weight:3,opacity:.9}).addTo(raceMap);
-      L.circleMarker(coords[0],{radius:7,color:'#1db954',fillColor:'#1db954',fillOpacity:1}).addTo(raceMap).bindTooltip('Salida',{permanent:true,className:'pr-tooltip'});
-      L.circleMarker(coords[coords.length-1],{radius:7,color:'#facc15',fillColor:'#facc15',fillOpacity:1}).addTo(raceMap).bindTooltip('Meta',{permanent:true,className:'pr-tooltip'});
-      raceMap.fitBounds(poly.getBounds(),{padding:[20,20]});
-    } else { raceMap.invalidateSize(); }
+    if(raceMap){ raceMap.remove(); raceMap=null; }
+    raceMap=L.map('race-modal-map');
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© CartoDB',maxZoom:19}).addTo(raceMap);
+    const coords=race.coords;
+    const poly=L.polyline(coords,{color:'#FC4C02',weight:3,opacity:.9}).addTo(raceMap);
+    L.circleMarker(coords[0],{radius:7,color:'#1db954',fillColor:'#1db954',fillOpacity:1}).addTo(raceMap).bindTooltip('Salida',{permanent:true,className:'pr-tooltip'});
+    L.circleMarker(coords[coords.length-1],{radius:7,color:'#facc15',fillColor:'#facc15',fillOpacity:1}).addTo(raceMap).bindTooltip('Meta',{permanent:true,className:'pr-tooltip'});
+    raceMap.fitBounds(poly.getBounds(),{padding:[20,20]});
+    setTimeout(()=>raceMap.invalidateSize(),50);
   },100);
 }
 function closeRaceModal(){ document.getElementById('race-modal').classList.remove('open'); }

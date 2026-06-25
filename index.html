@@ -244,6 +244,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
         <div class="card"><div class="card-title">elevación · últimas 12 semanas (m)</div><div class="chart-fixed-180 res-elev-wrap"><canvas id="res-elev"></canvas></div></div>
       </div>
       <div class="card"><div class="card-title">FC por zonas · acumulado</div><div class="res-hr-wrap"></div></div>
+      <div class="card"><div class="card-title">Predicción de tiempos de carrera</div><div id="res-predictions"></div></div>
       <div class="card"><div class="card-title">actividades esta semana</div><div id="res-week"></div></div>
       <div id="res-race"></div>
     </div>
@@ -790,6 +791,7 @@ function renderResumen(){
  
   const wkA=activities.filter(a=>new Date(a.start_date)>=ws);
   document.getElementById('res-week').innerHTML=wkA.length?wkA.map(a=>actRowHtml(a,activities.indexOf(a))).join(''):'<div class="empty">Sin actividades esta semana</div>';
+  renderPredictions();
   const vDate=new Date('2026-12-06');const dLeft=Math.ceil((vDate-new Date())/86400000);
   const ssDate2=new Date('2026-10-04');const dLeftSS=Math.ceil((ssDate2-new Date())/86400000);
   const nextR=dLeftSS>0
@@ -813,7 +815,61 @@ function renderResumen(){
 function resSport(t,el){resSportType=t;document.querySelectorAll('#res-tabs .sport-tab').forEach(x=>x.classList.remove('on'));el.classList.add('on');renderResumen();}
 function resYear(t,el){resYearType=t;document.querySelectorAll('.yt-btn').forEach(x=>x.classList.remove('on'));el.classList.add('on');renderResumen();}
  
-// ══ ACTIVIDADES ══
+// ── PREDICCIONES DE CARRERA (fórmula de Riegel) ──
+async function renderPredictions(){
+  const el=document.getElementById('res-predictions');
+  if(!el) return;
+  const runs=activities.filter(a=>a.type==='Run'&&a.distance>=3000&&a.average_speed>0);
+  if(!runs.length){ el.innerHTML='<div class="empty">Sin carreras suficientes para predecir</div>'; return; }
+ 
+  el.innerHTML='<div class="empty">Calculando predicciones…</div>';
+ 
+  // Find the best recent performance to use as reference (last 90 days, prefer longer runs ≥5K)
+  const cutoff=Date.now()-90*86400000;
+  const recentRuns=runs.filter(a=>new Date(a.start_date).getTime()>=cutoff);
+  const pool=(recentRuns.length?recentRuns:runs).filter(a=>a.distance>=5000);
+  const refPool=pool.length?pool:runs;
+ 
+  // Use the run with the best (lowest) predicted equivalent pace via Riegel as reference
+  // Riegel: T2 = T1 * (D2/D1)^1.06
+  const RIEGEL_EXP=1.06;
+  let bestRef=null, bestScore=Infinity;
+  refPool.forEach(a=>{
+    const t1=a.moving_time, d1=a.distance;
+    // normalize to predicted 10K time — lower is "better" reference
+    const predicted10k=t1*Math.pow(10000/d1,RIEGEL_EXP);
+    if(predicted10k<bestScore){ bestScore=predicted10k; bestRef=a; }
+  });
+ 
+  if(!bestRef){ el.innerHTML='<div class="empty">Sin datos suficientes</div>'; return; }
+ 
+  const t1=bestRef.moving_time, d1=bestRef.distance;
+  const targets=[
+    {d:5000,  l:'5K'},
+    {d:10000, l:'10K'},
+    {d:21097, l:'Media Maratón'},
+    {d:42195, l:'Maratón'},
+  ];
+ 
+  const cards=targets.map(({d,l})=>{
+    const predicted=t1*Math.pow(d/d1,RIEGEL_EXP);
+    const pace=fmtPace(predicted/(d/1000));
+    const isRef=Math.abs(d-d1)<d1*0.05;
+    return `<div style="background:var(--s2);border:1px solid var(--bd);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden">
+      ${isRef?'<div style="position:absolute;top:0;left:0;right:0;height:2px;background:var(--or)"></div>':''}
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:6px">${l}${isRef?' · base':''}</div>
+      <div style="font-size:1.4rem;font-weight:800;letter-spacing:-.03em">${fmtTimeFull(predicted)}</div>
+      <div style="font-family:var(--font-mono);font-size:11px;color:var(--or);margin-top:3px">${pace} min/km</div>
+    </div>`;
+  }).join('');
+ 
+  const refDate=fmtDateLong(bestRef.start_date);
+  el.innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px">${cards}</div>
+    <div style="font-family:var(--font-mono);font-size:10px;color:var(--fa)">
+      Basado en "${bestRef.name}" (${(d1/1000).toFixed(1)}km, ${fmtTimeFull(t1)}) del ${refDate} · fórmula de Riegel
+    </div>`;
+}
 function renderActividades(){redrawActList();}
 function filterActs(t,el){filterType=t;document.querySelectorAll('#act-pills .pill').forEach(p=>p.classList.remove('on'));el.classList.add('on');redrawActList();document.getElementById('act-det').style.display='none';}
  
@@ -866,6 +922,7 @@ async function selectAct(idx){
     {l:'FC promedio',   v:a.average_heartrate?Math.round(a.average_heartrate):'—', u:'bpm'},
     {l:'FC máxima',     v:a.max_heartrate?Math.round(a.max_heartrate):'—',         u:'bpm'},
     {l:'Calorías',      v:a.calories?Math.round(a.calories):'—',     u:'kcal'},
+    {l:'Kudos',         v:'👍 '+(a.kudos_count||0),                   u:''},
   ].map(s=>`<div class="det-stat"><div class="det-stat-l">${s.l}</div><div class="det-stat-v">${s.v}<em>${s.u}</em></div></div>`).join('');
  
   // Map
@@ -1490,7 +1547,7 @@ function actRowHtml(a,idx){
   return `<div class="act-row" data-idx="${idx}" onclick="selectAct(${idx})">
     <div class="act-l">${photoHtml}
     <div><div class="act-nm">${a.name}</div>
-    <div class="act-mt">${fmtDate(a.start_date)} · ${fmtTime(displayTime)}${a.average_heartrate?' · ❤ '+Math.round(a.average_heartrate)+'bpm':''}</div></div></div>
+    <div class="act-mt">${fmtDate(a.start_date)} · ${fmtTime(displayTime)}${a.average_heartrate?' · ❤ '+Math.round(a.average_heartrate)+'bpm':''}${a.kudos_count?' · 👍 '+a.kudos_count:''}</div></div></div>
     <div class="act-r"><div class="act-km">${(a.distance/1000).toFixed(2)}<em style="font-size:11px;color:var(--mu);font-family:var(--font-mono);margin-left:2px">km</em></div>
     <div class="act-sb">${pace} · ↑${Math.round(a.total_elevation_gain||0)}m</div></div>
   </div>`;

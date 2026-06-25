@@ -792,16 +792,18 @@ function renderResumen(){
   document.getElementById('res-week').innerHTML=wkA.length?wkA.map(a=>actRowHtml(a,activities.indexOf(a))).join(''):'<div class="empty">Sin actividades esta semana</div>';
   const vDate=new Date('2026-12-06');const dLeft=Math.ceil((vDate-new Date())/86400000);
   const ssDate2=new Date('2026-10-04');const dLeftSS=Math.ceil((ssDate2-new Date())/86400000);
-  const nextR=dLeftSS>0?{name:'Media Maratón de San Sebastián',date:'4 de octubre 2026',city:'San Sebastián, España',dist:'21.097 km',days:dLeftSS}:{name:'Maratón de Valencia 2026',date:'6 de diciembre 2026',city:'Valencia, España',dist:'42.195 km',days:dLeft};
-  const otherR=dLeftSS>0?{name:'Maratón Valencia 2026',days:dLeft}:{name:'Media Maratón San Sebastián',days:dLeftSS};
+  const nextR=dLeftSS>0
+    ?{name:'Rural Kutxa Media Maratón San Sebastián',date:'4 de octubre 2026',city:'San Sebastián, España',dist:'21.097 km',days:dLeftSS,key:'sansebastian'}
+    :{name:'Maratón de Valencia 2026',date:'6 de diciembre 2026',city:'Valencia, España',dist:'42.195 km',days:dLeft,key:'valencia'};
+  const otherR=dLeftSS>0?{name:'Maratón Valencia 2026',days:dLeft,key:'valencia'}:{name:'Media Maratón San Sebastián',days:dLeftSS,key:'sansebastian'};
   document.getElementById('res-race').innerHTML=`
-    <div class="race-card" onclick="openRaceModal()" style="cursor:pointer;transition:opacity .2s;margin-bottom:.5rem" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+    <div class="race-card" onclick="openRaceModal('${nextR.key}')" style="cursor:pointer;transition:opacity .2s;margin-bottom:.5rem" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem">
         <div><div class="race-label">📅 Próxima carrera</div><div class="race-name">${nextR.name}</div><div class="race-meta">${nextR.date} · ${nextR.city} · ${nextR.dist}</div></div>
         <div style="text-align:right;flex-shrink:0"><div style="font-size:2rem;font-weight:800;color:var(--or);letter-spacing:-.04em;line-height:1">${nextR.days}</div><div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-top:2px">días</div></div>
       </div>
     </div>
-    <div class="race-card" style="opacity:.6">
+    <div class="race-card" onclick="openRaceModal('${otherR.key}')" style="cursor:pointer;transition:opacity .2s;opacity:.6" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.6'">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem">
         <div><div class="race-label">📅 ${otherR.name}</div></div>
         <div style="font-family:var(--font-mono);font-size:12px;color:var(--mu)">${otherR.days} días</div>

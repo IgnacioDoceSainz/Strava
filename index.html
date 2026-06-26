@@ -819,93 +819,59 @@ function resYear(t,el){resYearType=t;document.querySelectorAll('.yt-btn').forEac
 async function renderPredictions(){
   const el=document.getElementById('res-predictions');
   if(!el) return;
-  const runs=activities.filter(a=>a.type==='Run'&&a.distance>=2000&&a.average_speed>0);
-  if(!runs.length){ el.innerHTML='<div class="empty">Sin carreras suficientes para predecir</div>'; return; }
  
-  el.innerHTML='<div class="empty">Calculando predicciones…</div>';
+  // Daniels-Gilbert VO2max race prediction model
+  // VO2max known: 57 ml/kg/min
+  const VO2MAX=57;
  
-  // Strava's model uses your best real efforts across recent runs (90 days) per standard distance,
-  // then fills any missing distance via Riegel extrapolation from the nearest known effort.
-  const cutoff=Date.now()-90*86400000;
-  const recentRuns=runs.filter(a=>new Date(a.start_date).getTime()>=cutoff);
-  const pool=recentRuns.length>=3?recentRuns:runs; // need enough sample, else use all history
+  // %VO2max sustainable as a function of race duration (Daniels & Gilbert, 1979)
+  // %VO2max = 0.8 + 0.1894393*e^(-0.012778*t) + 0.2989558*e^(-0.1932605*t)   (t in minutes)
+  function pctVO2max(tMin){
+    return 0.8 + 0.1894393*Math.exp(-0.012778*tMin) + 0.2989558*Math.exp(-0.1932605*tMin);
+  }
+  // VO2 (ml/kg/min) → velocity (m/min) via Daniels' oxygen cost of running formula, inverted numerically
+  // VO2 = -4.60 + 0.182258*v + 0.000104*v^2  →  solve quadratic for v given VO2
+  function velocityFromVO2(vo2){
+    const a=0.000104, b=0.182258, c=-4.60-vo2;
+    return (-b+Math.sqrt(b*b-4*a*c))/(2*a); // m/min
+  }
  
-  // Fetch best_efforts for the pool (reuse prCache from PRs if already loaded)
-  const toFetch=[...pool].sort((a,b)=>b.distance-a.distance).slice(0,30);
-  await Promise.all(toFetch.map(async a=>{
-    if(prCache[a.id]) return;
-    try{
-      const detail=await apiFetch(`/activities/${a.id}?include_all_efforts=true`);
-      prCache[a.id]=detail.best_efforts||[];
-    }catch(e){ prCache[a.id]=[]; }
-  }));
+  // Iteratively solve: race time t (min) such that velocity at %VO2max(t) covers distance d in t minutes
+  function predictTime(distanceM){
+    let t=distanceM/1000*5; // initial guess: 5 min/km
+    for(let i=0;i<50;i++){
+      const pct=pctVO2max(t);
+      const vo2AtPace=VO2MAX*pct;
+      const v=velocityFromVO2(vo2AtPace); // m/min
+      const newT=distanceM/v;
+      if(Math.abs(newT-t)<0.001) { t=newT; break; }
+      t=newT;
+    }
+    return t*60; // seconds
+  }
  
   const targets=[
-    {d:5000,  l:'5K',            effortName:'5K'},
-    {d:10000, l:'10K',           effortName:'10K'},
-    {d:21097, l:'Media Maratón', effortName:'Half-Marathon'},
-    {d:42195, l:'Maratón',       effortName:'Marathon'},
+    {d:5000,  l:'5K'},
+    {d:10000, l:'10K'},
+    {d:21097, l:'Media Maratón'},
+    {d:42195, l:'Maratón'},
   ];
  
-  // Find the best real effort for each target distance across the pool
-  const realBest={};
-  pool.forEach(a=>{
-    (prCache[a.id]||[]).forEach(e=>{
-      const t=targets.find(t=>t.effortName===e.name);
-      if(t&&(!realBest[t.d]||e.elapsed_time<realBest[t.d].secs)){
-        realBest[t.d]={secs:e.elapsed_time, source:a, real:true};
-      }
-    });
-  });
- 
-  // For any target without a real effort, extrapolate via Riegel from the closest known real effort
-  // (prefer the nearest distance with real data; fallback to best 10K-normalized performance)
-  const RIEGEL_EXP=1.06;
-  let bestRef=null,bestScore=Infinity;
-  pool.forEach(a=>{
-    const predicted10k=a.moving_time*Math.pow(10000/a.distance,RIEGEL_EXP);
-    if(predicted10k<bestScore){bestScore=predicted10k;bestRef=a;}
-  });
- 
-  targets.forEach(t=>{
-    if(realBest[t.d]) return;
-    // find closest real distance to extrapolate from
-    const knownDists=Object.keys(realBest).map(Number);
-    let base=null;
-    if(knownDists.length){
-      const closest=knownDists.reduce((a,b)=>Math.abs(b-t.d)<Math.abs(a-t.d)?b:a);
-      base={secs:realBest[closest].secs, dist:closest};
-    } else if(bestRef){
-      base={secs:bestRef.moving_time, dist:bestRef.distance};
-    }
-    if(base){
-      const predicted=base.secs*Math.pow(t.d/base.dist,RIEGEL_EXP);
-      realBest[t.d]={secs:predicted, source:bestRef, real:false};
-    }
-  });
- 
-  if(!Object.keys(realBest).length){ el.innerHTML='<div class="empty">Sin datos suficientes</div>'; return; }
- 
   const cards=targets.map(t=>{
-    const r=realBest[t.d];
-    if(!r) return `<div style="background:var(--s2);border:1px solid var(--bd);border-radius:12px;padding:14px 16px">
-      <div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:6px">${t.l}</div>
-      <div style="font-size:1.1rem;color:var(--fa)">—</div>
-    </div>`;
-    const pace=fmtPace(r.secs/(t.d/1000));
+    const secs=predictTime(t.d);
+    const pace=fmtPace(secs/(t.d/1000));
     return `<div style="background:var(--s2);border:1px solid var(--bd);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden">
-      ${r.real?'<div style="position:absolute;top:0;left:0;right:0;height:2px;background:#1db954"></div>':''}
-      <div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:6px">${t.l}${r.real?' · récord real':' · estimado'}</div>
-      <div style="font-size:1.4rem;font-weight:800;letter-spacing:-.03em">${fmtTimeFull(r.secs)}</div>
+      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:var(--or)"></div>
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:6px">${t.l}</div>
+      <div style="font-size:1.4rem;font-weight:800;letter-spacing:-.03em">${fmtTimeFull(secs)}</div>
       <div style="font-family:var(--font-mono);font-size:11px;color:var(--or);margin-top:3px">${pace} min/km</div>
-      <div style="font-family:var(--font-mono);font-size:9px;color:var(--fa);margin-top:4px">${fmtDate(r.source.start_date)}</div>
     </div>`;
   }).join('');
  
   el.innerHTML=`
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px">${cards}</div>
     <div style="font-family:var(--font-mono);font-size:10px;color:var(--fa)">
-      <span style="color:#1db954">●</span> récord real de los últimos 90 días &nbsp; <span style="color:var(--or)">●</span> estimado por fórmula de Riegel a partir de tu mejor marca
+      Calculado con tu VO2máx de ${VO2MAX} ml/kg/min · fórmula de Daniels-Gilbert
     </div>`;
 }
 function renderActividades(){redrawActList();}

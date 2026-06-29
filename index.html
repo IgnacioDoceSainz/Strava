@@ -819,94 +819,86 @@ function resYear(t,el){resYearType=t;document.querySelectorAll('.yt-btn').forEac
 async function renderPredictions(){
   const el=document.getElementById('res-predictions');
   if(!el) return;
-  const runs=activities.filter(a=>a.type==='Run'&&a.distance>=2000&&a.average_speed>0);
-  if(!runs.length){ el.innerHTML='<div class="empty">Sin carreras suficientes para predecir</div>'; return; }
  
-  el.innerHTML='<div class="empty">Calculando predicciones…</div>';
+  // ── Daniels-Gilbert VO2max race prediction model ──
+  const DECLARED_VO2MAX=57; // your reported VO2max (sensor-estimated, not race-derived)
  
-  // Strava's model uses your best real efforts across recent runs (90 days) per standard distance,
-  // then fills any missing distance via Riegel extrapolation from the nearest known effort.
-  const cutoff=Date.now()-90*86400000;
-  const recentRuns=runs.filter(a=>new Date(a.start_date).getTime()>=cutoff);
-  const pool=recentRuns.length>=3?recentRuns:runs; // need enough sample, else use all history
+  function pctVO2max(tMin){
+    return 0.8 + 0.1894393*Math.exp(-0.012778*tMin) + 0.2989558*Math.exp(-0.1932605*tMin);
+  }
+  function vo2FromVelocity(v){ return -4.60 + 0.182258*v + 0.000104*v*v; }
+  function velocityFromVO2(vo2){
+    const a=0.000104, b=0.182258, c=-4.60-vo2;
+    return (-b+Math.sqrt(b*b-4*a*c))/(2*a); // m/min
+  }
+  function predictTime(distanceM, vo2max){
+    let t=distanceM/1000*5;
+    for(let i=0;i<60;i++){
+      const v=velocityFromVO2(vo2max*pctVO2max(t));
+      const newT=distanceM/v;
+      if(Math.abs(newT-t)<0.0005){ t=newT; break; }
+      t=newT;
+    }
+    return t*60; // seconds
+  }
+  // Given a real performance (distance, time), back-solve the VO2max that produces it exactly —
+  // this is far more reliable than a sensor-estimated VO2max, since it reflects actual race output.
+  function effectiveVO2max(distanceM, timeS){
+    const tMin=timeS/60;
+    const v=distanceM/tMin; // m/min
+    const vo2Required=vo2FromVelocity(v);
+    return vo2Required/pctVO2max(tMin);
+  }
  
-  // Fetch best_efforts for the pool (reuse prCache from PRs if already loaded)
-  const toFetch=[...pool].sort((a,b)=>b.distance-a.distance).slice(0,30);
-  await Promise.all(toFetch.map(async a=>{
-    if(prCache[a.id]) return;
-    try{
-      const detail=await apiFetch(`/activities/${a.id}?include_all_efforts=true`);
-      prCache[a.id]=detail.best_efforts||[];
-    }catch(e){ prCache[a.id]=[]; }
-  }));
+  // Use real runs (last 2 months) to find the best race-quality effort to anchor the model.
+  // Prefer longer, harder efforts (10K+) since they better reflect sustainable aerobic capacity
+  // than short fast reps.
+  const cutoff=Date.now()-60*86400000;
+  const runs=activities.filter(a=>a.type==='Run'&&a.distance>=3000&&a.moving_time>0&&new Date(a.start_date).getTime()>=cutoff);
+ 
+  let anchor=null, anchorVO2=null;
+  if(runs.length){
+    // Score each run by the VO2max it implies — pick the highest (hardest relative effort),
+    // but weight toward longer distances (≥8K) when available since they're more reliable.
+    const longRuns=runs.filter(a=>a.distance>=8000);
+    const candidates=longRuns.length?longRuns:runs;
+    candidates.forEach(a=>{
+      const v=effectiveVO2max(a.distance,a.moving_time);
+      if(!anchorVO2||v>anchorVO2){ anchorVO2=v; anchor=a; }
+    });
+  }
+ 
+  const vo2max=anchorVO2||DECLARED_VO2MAX;
  
   const targets=[
-    {d:5000,  l:'5K',            effortName:'5K'},
-    {d:10000, l:'10K',           effortName:'10K'},
-    {d:21097, l:'Media Maratón', effortName:'Half-Marathon'},
-    {d:42195, l:'Maratón',       effortName:'Marathon'},
+    {d:5000,  l:'5K'},
+    {d:10000, l:'10K'},
+    {d:21097, l:'Media Maratón'},
+    {d:42195, l:'Maratón'},
   ];
  
-  // Find the best real effort for each target distance across the pool
-  const realBest={};
-  pool.forEach(a=>{
-    (prCache[a.id]||[]).forEach(e=>{
-      const t=targets.find(t=>t.effortName===e.name);
-      if(t&&(!realBest[t.d]||e.elapsed_time<realBest[t.d].secs)){
-        realBest[t.d]={secs:e.elapsed_time, source:a, real:true};
-      }
-    });
-  });
- 
-  // For any target without a real effort, extrapolate via Riegel from the closest known real effort
-  // (prefer the nearest distance with real data; fallback to best 10K-normalized performance)
-  const RIEGEL_EXP=1.06;
-  let bestRef=null,bestScore=Infinity;
-  pool.forEach(a=>{
-    const predicted10k=a.moving_time*Math.pow(10000/a.distance,RIEGEL_EXP);
-    if(predicted10k<bestScore){bestScore=predicted10k;bestRef=a;}
-  });
- 
-  targets.forEach(t=>{
-    if(realBest[t.d]) return;
-    // find closest real distance to extrapolate from
-    const knownDists=Object.keys(realBest).map(Number);
-    let base=null;
-    if(knownDists.length){
-      const closest=knownDists.reduce((a,b)=>Math.abs(b-t.d)<Math.abs(a-t.d)?b:a);
-      base={secs:realBest[closest].secs, dist:closest};
-    } else if(bestRef){
-      base={secs:bestRef.moving_time, dist:bestRef.distance};
-    }
-    if(base){
-      const predicted=base.secs*Math.pow(t.d/base.dist,RIEGEL_EXP);
-      realBest[t.d]={secs:predicted, source:bestRef, real:false};
-    }
-  });
- 
-  if(!Object.keys(realBest).length){ el.innerHTML='<div class="empty">Sin datos suficientes</div>'; return; }
- 
   const cards=targets.map(t=>{
-    const r=realBest[t.d];
-    if(!r) return `<div style="background:var(--s2);border:1px solid var(--bd);border-radius:12px;padding:14px 16px">
-      <div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:6px">${t.l}</div>
-      <div style="font-size:1.1rem;color:var(--fa)">—</div>
-    </div>`;
-    const pace=fmtPace(r.secs/(t.d/1000));
+    const secs=predictTime(t.d,vo2max);
+    const pace=fmtPace(secs/(t.d/1000));
     return `<div style="background:var(--s2);border:1px solid var(--bd);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden">
-      ${r.real?'<div style="position:absolute;top:0;left:0;right:0;height:2px;background:#1db954"></div>':''}
-      <div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:6px">${t.l}${r.real?' · récord real':' · estimado'}</div>
-      <div style="font-size:1.4rem;font-weight:800;letter-spacing:-.03em">${fmtTimeFull(r.secs)}</div>
+      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:var(--or)"></div>
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);margin-bottom:6px">${t.l}</div>
+      <div style="font-size:1.4rem;font-weight:800;letter-spacing:-.03em">${fmtTimeFull(secs)}</div>
       <div style="font-family:var(--font-mono);font-size:11px;color:var(--or);margin-top:3px">${pace} min/km</div>
-      <div style="font-family:var(--font-mono);font-size:9px;color:var(--fa);margin-top:4px">${fmtDate(r.source.start_date)}</div>
     </div>`;
   }).join('');
  
+  let footnote;
+  if(anchor){
+    footnote=`Basado en "${anchor.name}" (${fmtDate(anchor.start_date)}, ${(anchor.distance/1000).toFixed(1)}km en ${fmtTimeFull(anchor.moving_time)}) — VO2máx efectivo ${vo2max.toFixed(1)} ml/kg/min.<br>
+    Tu VO2máx reportado por el reloj es ${DECLARED_VO2MAX}, pero usamos el derivado de tu marca real porque refleja mejor tu rendimiento sostenible en carrera.`;
+  } else {
+    footnote=`Sin carreras recientes (60 días) para calibrar — usando tu VO2máx reportado de ${DECLARED_VO2MAX} ml/kg/min. Esta estimación puede ser optimista si no corresponde a un esfuerzo de carrera real.`;
+  }
+ 
   el.innerHTML=`
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px">${cards}</div>
-    <div style="font-family:var(--font-mono);font-size:10px;color:var(--fa)">
-      <span style="color:#1db954">●</span> récord real de los últimos 90 días &nbsp; <span style="color:var(--or)">●</span> estimado por fórmula de Riegel a partir de tu mejor marca
-    </div>`;
+    <div style="font-family:var(--font-mono);font-size:10px;color:var(--fa);line-height:1.6">${footnote}</div>`;
 }
 function renderActividades(){redrawActList();}
 function filterActs(t,el){filterType=t;document.querySelectorAll('#act-pills .pill').forEach(p=>p.classList.remove('on'));el.classList.add('on');redrawActList();document.getElementById('act-det').style.display='none';}

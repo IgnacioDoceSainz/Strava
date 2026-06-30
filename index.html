@@ -226,6 +226,10 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
         <div class="card-title">zapatillas</div>
         <div id="pf-shoes"><div class="empty">Sin datos de zapatillas</div></div>
       </div>
+      <div class="card">
+        <div class="card-title">fotos de mis actividades</div>
+        <div id="pf-photos"><div class="empty">Cargando fotos…</div></div>
+      </div>
     </div>
  
     <!-- RESUMEN -->
@@ -243,7 +247,6 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
         <div class="card"><div class="card-title">km · últimas 12 semanas</div><div class="chart-fixed-180 res-km-wrap"><canvas id="res-km"></canvas></div></div>
         <div class="card"><div class="card-title">elevación · últimas 12 semanas (m)</div><div class="chart-fixed-180 res-elev-wrap"><canvas id="res-elev"></canvas></div></div>
       </div>
-      <div class="card"><div class="card-title">FC por zonas · acumulado</div><div class="res-hr-wrap"></div></div>
       <div class="card"><div class="card-title">Predicción de tiempos de carrera</div><div id="res-predictions"></div></div>
       <div class="card"><div class="card-title">actividades esta semana</div><div id="res-week"></div></div>
       <div id="res-race"></div>
@@ -612,6 +615,7 @@ function renderPerfil(){
     </div>`:''}`;
   pfStatSport='all'; drawPfStats();
   pfSportType='Run'; drawPfChart();
+  renderPfPhotos();
   // shoes
   const shoesEl=document.getElementById('pf-shoes');
   // Use detailed gear if available, otherwise fall back to athlete.shoes basic info
@@ -642,6 +646,51 @@ function renderPerfil(){
     </div>`;
   }).join('');
   animateShoesBars();
+}
+ 
+async function renderPfPhotos(){
+  const el=document.getElementById('pf-photos');
+  if(!el) return;
+  el.innerHTML='<div class="empty">Cargando fotos…</div>';
+ 
+  // Strava flags activities with photos via 'total_photo_count' in the activity list
+  const withPhotos=activities.filter(a=>a.total_photo_count>0).sort((a,b)=>new Date(b.start_date)-new Date(a.start_date)).slice(0,12);
+ 
+  if(!withPhotos.length){
+    el.innerHTML='<div class="empty">Sin fotos en tus actividades recientes</div>';
+    return;
+  }
+ 
+  try{
+    const photoSets=await Promise.all(withPhotos.map(a=>
+      apiFetch(`/activities/${a.id}/photos?size=400&photo_sources=true`).catch(()=>[])
+    ));
+ 
+    const allPhotos=[];
+    photoSets.forEach((photos,i)=>{
+      (photos||[]).forEach(p=>{
+        const src=p.urls?.['400']||p.urls?.['600']||p.urls?.['100']||p.urls?.url||p.source?.url||'';
+        if(src) allPhotos.push({src, activity:withPhotos[i]});
+      });
+    });
+ 
+    if(!allPhotos.length){
+      el.innerHTML='<div class="empty">Sin fotos en tus actividades recientes</div>';
+      return;
+    }
+ 
+    el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">
+      ${allPhotos.slice(0,18).map(p=>`
+        <div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--bd);cursor:pointer" onclick="window.open('${p.src}','_blank')">
+          <img src="${p.src}" alt="foto actividad" style="width:100%;height:140px;object-fit:cover;display:block" onerror="this.parentElement.style.display='none'">
+          <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.75));padding:16px 8px 6px;font-family:var(--font-mono);font-size:9px;color:white">
+            ${fmtDate(p.activity.start_date)}
+          </div>
+        </div>`).join('')}
+    </div>`;
+  }catch(e){
+    el.innerHTML='<div class="empty">Error cargando fotos</div>';
+  }
 }
  
 function animateShoesBars(){
@@ -732,62 +781,6 @@ function renderResumen(){
   const w10=last10Weeks();const lbs=w10.map(w=>w.label);
   mkChart('res-km','line',lbs,[{label:'km',data:w10.map(w=>+allPool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+a.distance/1000,0).toFixed(1)),borderColor:'#FC4C02',backgroundColor:'rgba(252,76,2,.15)',fill:true,spanGaps:true}]);
   mkChart('res-elev','line',lbs,[{label:'m',data:w10.map(w=>Math.round(allPool.filter(a=>new Date(a.start_date)>=w.start&&new Date(a.start_date)<w.end).reduce((s,a)=>s+(a.total_elevation_gain||0),0))),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.15)',fill:true,spanGaps:true}]);
-  // FC por zonas — barras horizontales estilo Strava agregadas de todas las actividades del pool
-  const resHrWrap=document.querySelector('.res-hr-wrap');
-  if(resHrWrap){
-    {
-      const zones=[
-        {minBpm:0,   maxBpm:132, color:'#60a5fa', name:'Z1', label:'Recuperación'},
-        {minBpm:133, maxBpm:149, color:'#34d399', name:'Z2', label:'Resistencia'},
-        {minBpm:150, maxBpm:165, color:'#fbbf24', name:'Z3', label:'Ritmo'},
-        {minBpm:166, maxBpm:179, color:'#f97316', name:'Z4', label:'Umbral'},
-        {minBpm:180, maxBpm:999, color:'#ef4444', name:'Z5', label:'Anaeróbico'},
-      ];
-      function classifyBPM(bpm){
-        for(let i=0;i<zones.length;i++) if(bpm>=zones[i].minBpm&&bpm<=zones[i].maxBpm) return i;
-        return zones.length-1;
-      }
-      // Aggregate time per zone across all activities in pool with HR
-      const zoneSecs=[0,0,0,0,0];
-      let totalSecs=0;
-      allPool.filter(a=>a.average_heartrate&&a.moving_time).forEach(a=>{
-        zoneSecs[classifyBPM(Math.round(a.average_heartrate))]+=a.moving_time;
-        totalSecs+=a.moving_time;
-      });
-      const pcts=zoneSecs.map(s=>totalSecs?+(s/totalSecs*100).toFixed(1):0);
- 
-      // Render horizontal bars Z5→Z1 (top to bottom)
-      const rows=[...zones].reverse().map((z,ri)=>{
-        const i=zones.indexOf(z);
-        const pct=pcts[i];
-        return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-          <div style="width:24px;flex-shrink:0;font-family:var(--font-mono);font-size:11px;font-weight:600;color:${z.color}">${z.name}</div>
-          <div style="flex:1;background:var(--s3);border-radius:4px;height:20px;overflow:hidden">
-            <div style="width:${pct}%;height:100%;background:${z.color};border-radius:4px;display:flex;align-items:center;padding-left:8px;min-width:${pct>0?'4px':'0'}">
-              ${pct>=8?`<span style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:rgba(0,0,0,.8)">${Math.round(pct)}%</span>`:''}
-            </div>
-          </div>
-          <div style="width:60px;text-align:right;flex-shrink:0;font-family:var(--font-mono);font-size:11px">
-            <span style="color:var(--tx);font-weight:600">${Math.round(pct)}%</span>
-            <span style="color:var(--fa);margin-left:4px">${fmtTime(Math.round(zoneSecs[i]))}</span>
-          </div>
-        </div>`;
-      }).join('');
- 
-      const legend=zones.map(z=>`<div style="display:flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:10px">
-        <span style="width:7px;height:7px;border-radius:2px;background:${z.color};display:inline-block"></span>
-        <span style="color:var(--mu)">${z.name} ${z.label}</span>
-        <span style="color:var(--fa)">${z.minBpm}–${z.maxBpm===999?'∞':z.maxBpm}</span>
-      </div>`).join('');
- 
-      resHrWrap.innerHTML=`
-        <div style="font-family:var(--font-mono);font-size:10px;color:var(--mu);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">
-          <span>Frecuencia cardíaca por zona</span><span style="color:var(--fa)">zonas de tu cuenta Strava</span>
-        </div>
-        <div style="margin-bottom:8px">${rows}</div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">${legend}</div>`;
-    }
-  }
  
   const wkA=activities.filter(a=>new Date(a.start_date)>=ws);
   document.getElementById('res-week').innerHTML=wkA.length?wkA.map(a=>actRowHtml(a,activities.indexOf(a))).join(''):'<div class="empty">Sin actividades esta semana</div>';

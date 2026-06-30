@@ -1096,10 +1096,11 @@ async function selectAct(idx){
         const hrMax=l.max_heartrate?Math.round(l.max_heartrate):'—';
         const asc=l.total_elevation_gain!=null?Math.round(l.total_elevation_gain):'—';
         const desc=l.total_elevation_loss!=null?Math.round(l.total_elevation_loss):'—';
-        const isSummary=i===laps.length-1&&laps.length>1;
-        const rowStyle=isSummary?'font-weight:700;border-top:2px solid var(--bd2)':'';
+        const isSummary=false;
+        const rowStyle='';
+        const lapNum=i+1;
         return `<tr style="border-bottom:1px solid var(--bd);${rowStyle}">
-          <td style="padding:7px 10px;font-family:var(--font-mono);font-size:11px;color:var(--mu)">${isSummary?'Resumen':i+1}</td>
+          <td style="padding:7px 10px;font-family:var(--font-mono);font-size:11px;color:var(--mu)">${lapNum}</td>
           <td style="padding:7px 10px;font-family:var(--font-mono);font-size:11px">${t}</td>
           <td style="padding:7px 10px;font-family:var(--font-mono);font-size:11px;color:var(--fa)">${cum}</td>
           <td style="padding:7px 10px;font-family:var(--font-mono);font-size:11px">${dist}</td>
@@ -1732,7 +1733,8 @@ function toggleRetire(id,btn){
   // Animate bar to new target
   const barFill=row.querySelector('.shoe-bar-fill');
   if(barFill){
-    const target=isNowRetired?100:Math.round(km/1000*100);
+    const maxKm=1000;
+    const target=isNowRetired?100:Math.min(100,Math.round(km/maxKm*100));
     barFill.style.background=isNowRetired?'rgba(255,255,255,.12)':'var(--or)';
     requestAnimationFrame(()=>requestAnimationFrame(()=>{ barFill.style.width=target+'%'; }));
   }

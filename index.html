@@ -445,7 +445,7 @@ function startOAuth(){
     +'&response_type=code'
     +'&redirect_uri='+encodeURIComponent(REDIRECT)
     +'&approval_prompt=force'
-    +'&scope=activity:read_all,profile:read_all';
+    +'&scope=read,activity:read_all,profile:read_all';
   window.location.href=url;
 }
  

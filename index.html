@@ -335,7 +335,7 @@ body{font-family:var(--font-head);background:var(--bg);color:var(--tx);min-heigh
  
 <script>
 const CLIENT_ID='237317';
-const REDIRECT='https://ignaciodocesainz.github.io/Strava/';
+const REDIRECT='https://ignaciodocesainz.github.io/Strava';
 const WORKER='https://strava.ignaciodocee.workers.dev';
 let activities=[],athlete={},gear=[],athleteZones=[];
 // Restore cached zones immediately
@@ -382,14 +382,17 @@ window.addEventListener('DOMContentLoaded',async()=>{
         body:JSON.stringify({code, redirect_uri:REDIRECT})
       });
       const text=await res.text();
+      console.log('Worker /token status:', res.status, 'response:', text.slice(0,200));
       let data;
       try{ data=JSON.parse(text); }catch(e){ throw new Error('Respuesta inválida: '+text.slice(0,100)); }
+      console.log('access_token:', data.access_token?.slice(0,15), 'athlete_id:', data.athlete?.id);
       if(!data.access_token) throw new Error(data.message||data.error||JSON.stringify(data));
       // Save token + refresh token + expiry
       localStorage.setItem('strava_token',        data.access_token);
       localStorage.setItem('strava_refresh_token', data.refresh_token||'');
       localStorage.setItem('strava_expires_at',    data.expires_at||0);
       localStorage.setItem('strava_athlete',       JSON.stringify(data.athlete||{}));
+      console.log('Token saved OK, calling loadApp...');
       clearTimeout(resetTimer);
       await loadApp(data.access_token, data.athlete);
     }catch(e){
@@ -504,6 +507,7 @@ async function loadApp(token,savedAth){
  
 async function apiFetch(path,token){
   const t=token||localStorage.getItem('strava_token');
+  console.log('apiFetch', path, 'token:', t?.slice(0,15)||'NONE');
   const r=await fetch(WORKER+'/api'+path,{headers:{'X-Strava-Token':t}});
   if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.message||'HTTP '+r.status);}
   return r.json();

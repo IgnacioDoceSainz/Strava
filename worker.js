@@ -1,4 +1,4 @@
-const REDIRECT_URI = 'https://ignaciodocesainz.github.io/Strava/';
+const REDIRECT_URI = 'https://ignaciodocesainz.github.io/Strava';
 const FALLBACK_CLIENT_ID = '237317';
 
 const CORS = {
